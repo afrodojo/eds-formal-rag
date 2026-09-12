@@ -65,7 +65,7 @@ class DefenseLLMTrainer:
         model.print_trainable_parameters()
         return model, tokenizer
 
-    def get_training_args(() -> TrainingArguments:
+    def get_training_args(self) -> TrainingArguments:
         """
         Sets hyperparameter configuration optimized for multi-GPU HGX clusters.
         """
