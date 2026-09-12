@@ -1,0 +1,50 @@
+﻿# Base image: Minimal Ubuntu 24.04 for hardened security footprint
+FROM ubuntu:24.04
+
+# Prevent interactive prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies & C3PAO security hardening utilities
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory inside the enclave
+WORKDIR /app
+
+# Create non-root secure enclave user
+RUN useradd -m -s /bin/bash enclaveuser
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy application source code into container
+COPY enclave/ ./enclave/
+COPY solver/ ./solver/
+COPY model/ ./model/
+COPY simulation/ ./simulation/
+COPY dashboard/ ./dashboard/
+
+# Set ownership to non-root enclave user
+RUN chown -R enclaveuser:enclaveuser /app
+
+USER enclaveuser
+
+# Expose internal loopback port for the Zero-Gravity SOC Command Center
+EXPOSE 7860
+
+# Health check to verify Z3 verifier and enclave attestation status
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python3 enclave/attestation_verifier.py || exit 1
+
+# Default entrypoint runs the SMT-verified dashboard inside the TEE
+CMD ["python3", "dashboard/app.py"]
