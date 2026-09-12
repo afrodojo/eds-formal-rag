@@ -1,5 +1,4 @@
-import gradio as gr
-import numpy as np
+﻿import gradio as gr
 
 # Mock SMT Logic Verifier
 def verify_threat_token(prompt_text, classification):
@@ -25,16 +24,16 @@ Supported Greenhouse Space: {heated_greenhouse_sqft:.1f} sq. ft.
 """
     return output_log
 
-# Custom CSS for Zero-Gravity Command Center Aesthetic
+# Custom CSS for Dark Cyan Command Center Aesthetic
 custom_css = """
-body { background-color: #0b0f19; color: #00f0ff; }
+body { background-color: #0b0f19 !important; color: #00f0ff !important; }
 .gradio-container { background-color: #0b0f19 !important; }
-#title-header { text-align: center; color: #00f0ff; text-shadow: 0 0 10px #00f0ff; }
+#title-header { text-align: center; color: #00f0ff !important; font-family: monospace; }
 """
 
 # Build Gradio Dashboard Layout
 with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
-    gr.Markdown("# ??? EMERGING DEFENSE SOLUTIONS (EDS)", elem_id="title-header")
+    gr.Markdown("# EMERGING DEFENSE SOLUTIONS (EDS)", elem_id="title-header")
     gr.Markdown("### Zero-Gravity SOC Command Center | SMT Formal Verification & Microgrid Control")
     
     with gr.Row():
