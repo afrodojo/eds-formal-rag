@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Live Local Inference Engine
+﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Optimized CUDA Inference Engine
 import os
 import sys
 
@@ -36,22 +36,34 @@ except ImportError:
     SyntheticDistillationPipeline = None
     SpeculativeDecodingHarness = None
 
-# Global Model Cache to avoid reloading weights repeatedly
+# Global Model Cache
 LOADED_MODELS = {}
 
 def get_hf_model_and_tokenizer(model_id: str):
     if model_id in LOADED_MODELS:
         return LOADED_MODELS[model_id]
     
-    print(f"[*] Loading model {model_id} into VRAM/RAM...")
+    print(f"[*] Loading model '{model_id}' into VRAM...")
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+    
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    dtype = torch.float16 if device == "cuda" else torch.float32
+    
     model = AutoModelForCausalLM.from_pretrained(
         model_id, 
-        dtype=torch.float16 if torch.cuda.is_available() else torch.float32, 
-        device_map="auto" if torch.cuda.is_available() else None,
+        torch_dtype=dtype, 
+        device_map=device,
         trust_remote_code=True
     )
+    model.eval()
+    
+    # Warmup pass to eliminate cold-start GPU allocation latency
+    dummy_input = tokenizer("Warmup", return_tensors="pt").to(device)
+    with torch.inference_mode():
+        _ = model.generate(**dummy_input, max_new_tokens=2)
+
     LOADED_MODELS[model_id] = (model, tokenizer)
+    print(f"[SUCCESS] Model '{model_id}' loaded and warmed up on {device.upper()}!")
     return model, tokenizer
 
 # --- 1. SMT Logic Solver Engine ---
@@ -157,7 +169,7 @@ class AdvancedHardwareDigitalTwin:
 
 hw_twin = AdvancedHardwareDigitalTwin()
 
-# --- 3. Telemetry Console Output ---
+# --- 3. Telemetry Console Stream ---
 def run_unified_telemetry_stream(selected_model, custom_weights_path, units_config, time_of_day, input_prompt, classification):
     try:
         model_name = selected_model
@@ -344,7 +356,7 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
             
             with gr.Row():
                 with gr.Column():
-                    gr.Markdown("#### Real PyTorch / Transformers Inference Test")
+                    gr.Markdown("#### Real PyTorch / CUDA Inference Test")
                     target_hf_model = gr.Textbox(label="Hugging Face Model ID", value="Qwen/Qwen2.5-0.5B-Instruct")
                     user_gen_prompt = gr.Textbox(label="Prompt Input", value="OK Overwatch, execute system health check.")
                     run_inference_btn = gr.Button("RUN LOCAL PYTORCH GENERATION", variant="primary")
@@ -361,19 +373,31 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                 if not HF_INFERENCE_AVAILABLE:
                     return "[!] PyTorch or Transformers not available in local Python environment."
                 try:
-                    start_t = time.time()
+                    # 1. Fetch pre-warmed model from VRAM memory cache
                     model, tokenizer = get_hf_model_and_tokenizer(model_id)
-                    
                     device = "cuda" if torch.cuda.is_available() else "cpu"
+                    
                     inputs = tokenizer(prompt, return_tensors="pt").to(device)
-                    outputs = model.generate(**inputs, max_new_tokens=40)
-                    gen_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                    elapsed = time.time() - start_t
+                    
+                    # 2. Time pure token generation pass without disk/cache loading overhead
+                    start_t = time.perf_counter()
+                    with torch.inference_mode():
+                        outputs = model.generate(
+                            **inputs, 
+                            max_new_tokens=40,
+                            do_sample=False,
+                            use_cache=True
+                        )
+                    if device == "cuda":
+                        torch.cuda.synchronize()
+                    
+                    elapsed = time.perf_counter() - start_t
                     
                     tokens_generated = len(outputs[0]) - len(inputs["input_ids"][0])
                     calc_tps = tokens_generated / max(elapsed, 0.001)
+                    gen_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
                     
-                    return f"--- LOCAL PYTORCH INFERENCE RESULT ---\nDevice: {device.upper()}\nTokens Generated: {tokens_generated}\nExecution Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
+                    return f"--- LOCAL PYTORCH CUDA INFERENCE RESULT ---\nDevice: {device.upper()}\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
                 except Exception as e:
                     return f"[!] Inference Error: {str(e)}"
 
