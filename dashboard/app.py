@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center & High-TPS Model Lab
+﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Live Local Inference Engine
 import os
 import sys
 
@@ -10,6 +10,13 @@ import random
 import time
 import json
 import z3
+
+try:
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    HF_INFERENCE_AVAILABLE = True
+except ImportError:
+    HF_INFERENCE_AVAILABLE = False
 
 try:
     import speech_recognition as sr
@@ -28,6 +35,24 @@ try:
 except ImportError:
     SyntheticDistillationPipeline = None
     SpeculativeDecodingHarness = None
+
+# Global Model Cache to avoid reloading weights repeatedly
+LOADED_MODELS = {}
+
+def get_hf_model_and_tokenizer(model_id: str):
+    if model_id in LOADED_MODELS:
+        return LOADED_MODELS[model_id]
+    
+    print(f"[*] Loading model {model_id} into VRAM/RAM...")
+    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id, 
+        dtype=torch.float16 if torch.cuda.is_available() else torch.float32, 
+        device_map="auto" if torch.cuda.is_available() else None,
+        trust_remote_code=True
+    )
+    LOADED_MODELS[model_id] = (model, tokenizer)
+    return model, tokenizer
 
 # --- 1. SMT Logic Solver Engine ---
 class PolicyVerifier:
@@ -68,11 +93,10 @@ class AdvancedHardwareDigitalTwin:
         }
 
         self.model_profiles = {
+            "Qwen2.5-0.5B-Instruct": {"base_tps": 220, "base_hallucination_rate": 0.04},
             "Qwen2.5-7B (Fine-Tuned)": {"base_tps": 180, "base_hallucination_rate": 0.04},
             "Llama-3.1-70B-Instruct": {"base_tps": 45, "base_hallucination_rate": 0.08},
             "DeepSeek-R1-Distill-70B": {"base_tps": 52, "base_hallucination_rate": 0.03},
-            "Mistral-Large-2": {"base_tps": 38, "base_hallucination_rate": 0.06},
-            "Custom-Ingested-ONNX/Safetensors": {"base_tps": 110, "base_hallucination_rate": 0.05}
         }
         
         self.solar_array_max_kw = 120.0
@@ -90,13 +114,11 @@ class AdvancedHardwareDigitalTwin:
             if unit in self.specs:
                 total_it_kw += self.specs[unit] * count
 
-        model_info_data = self.model_profiles.get(selected_model, self.model_profiles["Qwen2.5-7B (Fine-Tuned)"])
+        model_info_data = self.model_profiles.get(selected_model, self.model_profiles["Qwen2.5-0.5B-Instruct"])
         tps_multiplier = 1.0
 
         if config.get("Cerebras_CS4", 0) > 0:
             tps_multiplier *= (5.5 * config["Cerebras_CS4"])
-        elif config.get("Cerebras_CS3", 0) > 0:
-            tps_multiplier *= (4.0 * config["Cerebras_CS3"])
         elif config.get("B200_HGX", 0) > 0:
             tps_multiplier *= (2.2 * config["B200_HGX"])
 
@@ -135,7 +157,7 @@ class AdvancedHardwareDigitalTwin:
 
 hw_twin = AdvancedHardwareDigitalTwin()
 
-# --- 3. Telemetry Log Stream ---
+# --- 3. Telemetry Console Output ---
 def run_unified_telemetry_stream(selected_model, custom_weights_path, units_config, time_of_day, input_prompt, classification):
     try:
         model_name = selected_model
@@ -172,7 +194,7 @@ def run_unified_telemetry_stream(selected_model, custom_weights_path, units_conf
     except Exception as ex:
         return f"--- EXECUTION ERROR LOGGED ---\nError Details: {str(ex)}"
 
-# --- 4. STT Transcriber & Wake-Word Overwatch Processing ---
+# --- 4. Speech-to-Text & Wake-Word Overwatch Processing ---
 def transcribe_audio_file(audio_path):
     if not audio_path or not SR_AVAILABLE:
         return None
@@ -183,7 +205,7 @@ def transcribe_audio_file(audio_path):
             text = r.recognize_google(audio_data)
             return text
     except Exception as e:
-        print(f"[!] Speech-to-Text Error: {str(e)}")
+        print(f"[!] STT Error: {str(e)}")
         return None
 
 def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_path, units_config, time_of_day):
@@ -227,20 +249,19 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
     gr.Markdown("### Zero-Gravity SOC Command Center | Voice-Enabled Overwatch (JARVIS AI)")
 
     with gr.Tabs():
-        # TAB 1: Datacenter Hardware Twin
         with gr.Tab("SOC Command Center & Hardware Twin"):
             with gr.Row():
                 with gr.Column(scale=1):
                     with gr.Group():
                         gr.Markdown("#### Model Ingestion & Selection")
                         model_selector = gr.Dropdown(
-                            choices=["Qwen2.5-7B (Fine-Tuned)", "Llama-3.1-70B-Instruct", "DeepSeek-R1-Distill-70B", "Mistral-Large-2"],
-                            value="Qwen2.5-7B (Fine-Tuned)",
+                            choices=["Qwen2.5-0.5B-Instruct", "Qwen2.5-7B (Fine-Tuned)", "Llama-3.1-70B-Instruct", "DeepSeek-R1-Distill-70B"],
+                            value="Qwen2.5-0.5B-Instruct",
                             label="Target LLM Architecture"
                         )
                         custom_weights = gr.Textbox(
                             label="Ingest Local Weights Path / HuggingFace ID",
-                            value="dassensei/sat-constrained-qwen-poc"
+                            value="Qwen/Qwen2.5-0.5B-Instruct"
                         )
 
                     with gr.Group():
@@ -266,7 +287,6 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                 outputs=console_output
             )
 
-        # TAB 2: Wake-Word Audio Overwatch AI
         with gr.Tab("🎙️ Conversational Overwatch (Wake-Word Enabled)"):
             gr.Markdown("### 🎙️ Live Voice Overwatch (Wake-Word: 'OK Overwatch')")
             gr.Markdown("Say **'OK Overwatch, give me a status report'** into your mic. The AI transcribes your voice, verifies the wake word, and streams voice playback out loud.")
@@ -318,33 +338,44 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
             
             clear_btn.click(lambda: ([], "<p>Voice stream cleared.</p>"), None, [chatbot, audio_html_output], queue=False)
 
-        # TAB 3: High-TPS Model Lab & Speculative Engine
-        with gr.Tab("⚡ High-TPS Model Lab & Speculative Engine"):
-            gr.Markdown("### ⚡ Custom LLM Training & Speculative Acceleration Lab")
-            gr.Markdown("Distill knowledge from Teacher Models (70B+) into Student architectures with Speculative Decoding to maximize Tokens Per Second (TPS).")
+        with gr.Tab("⚡ High-TPS Model Lab & Local HF Inference"):
+            gr.Markdown("### ⚡ Custom LLM Real-Time Inference & Speculative Lab")
+            gr.Markdown("Run local inference using PyTorch/Transformers models (`Qwen2.5-0.5B-Instruct`) and test speculative decoding throughput.")
             
             with gr.Row():
                 with gr.Column():
-                    gr.Markdown("#### Teacher-Student Distillation Setup")
-                    teacher_drop = gr.Dropdown(choices=["DeepSeek-R1-Distill-70B", "Llama-3.1-70B-Instruct"], value="DeepSeek-R1-Distill-70B", label="Teacher Model")
-                    student_drop = gr.Dropdown(choices=["Custom-Qwen2.5-7B-Student", "Custom-Llama3-8B-Student"], value="Custom-Qwen2.5-7B-Student", label="Student Architecture (GQA)")
-                    distill_btn = gr.Button("RUN SYNTHETIC DISTILLATION BATCH", variant="primary")
-                    distill_output = gr.Textbox(label="Distillation Pipeline Log", lines=8, interactive=False)
+                    gr.Markdown("#### Real PyTorch / Transformers Inference Test")
+                    target_hf_model = gr.Textbox(label="Hugging Face Model ID", value="Qwen/Qwen2.5-0.5B-Instruct")
+                    user_gen_prompt = gr.Textbox(label="Prompt Input", value="OK Overwatch, execute system health check.")
+                    run_inference_btn = gr.Button("RUN LOCAL PYTORCH GENERATION", variant="primary")
+                    hf_output_box = gr.Textbox(label="Generated Output Stream", lines=8, interactive=False)
 
                 with gr.Column():
-                    gr.Markdown("#### Speculative Decoding Throughput Test")
+                    gr.Markdown("#### Speculative Decoding Simulation")
                     draft_lookahead = gr.Slider(minimum=1, maximum=8, step=1, value=5, label="Speculative Draft Lookahead (Gamma)")
                     test_prompt = gr.Textbox(label="Benchmark Prompt", value="OK Overwatch, execute speculative decoding benchmark.")
                     spec_btn = gr.Button("RUN HIGH-TPS BENCHMARK", variant="primary")
                     spec_output = gr.Textbox(label="Speculative Throughput Results", lines=8, interactive=False)
 
-            def run_distill_ui(teacher, student):
-                if SyntheticDistillationPipeline:
-                    pipe = SyntheticDistillationPipeline(teacher_model_id=teacher, student_backbone=student)
-                    data = pipe.generate_synthetic_reasoning_batch(["Security policy check", "Power grid optimization"])
-                    pipe.export_distillation_jsonl(data)
-                    return f"[SUCCESS] Synthesized {len(data)} training pairs from {teacher} into student backbone {student}.\nDataset saved to 'data/synthetic_distill_train.jsonl'."
-                return "[!] Distillation module ready."
+            def run_live_hf_inference(model_id, prompt):
+                if not HF_INFERENCE_AVAILABLE:
+                    return "[!] PyTorch or Transformers not available in local Python environment."
+                try:
+                    start_t = time.time()
+                    model, tokenizer = get_hf_model_and_tokenizer(model_id)
+                    
+                    device = "cuda" if torch.cuda.is_available() else "cpu"
+                    inputs = tokenizer(prompt, return_tensors="pt").to(device)
+                    outputs = model.generate(**inputs, max_new_tokens=40)
+                    gen_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                    elapsed = time.time() - start_t
+                    
+                    tokens_generated = len(outputs[0]) - len(inputs["input_ids"][0])
+                    calc_tps = tokens_generated / max(elapsed, 0.001)
+                    
+                    return f"--- LOCAL PYTORCH INFERENCE RESULT ---\nDevice: {device.upper()}\nTokens Generated: {tokens_generated}\nExecution Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
+                except Exception as e:
+                    return f"[!] Inference Error: {str(e)}"
 
             def run_spec_ui(gamma, prompt):
                 if SpeculativeDecodingHarness:
@@ -353,7 +384,7 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                     return f"--- SPECULATIVE DECODING BENCHMARK ---\nTarget Model: Custom-Student-7B (GQA + FP8)\nDraft Lookahead (Gamma): {gamma}\nAccepted Speculative Tokens: {res['accepted_count']}/{gamma}\nEffective Speed: {res['effective_tps']} Tokens/sec\nGenerated Output: {res['generated_text']}"
                 return "[!] Speculative engine ready."
 
-            distill_btn.click(fn=run_distill_ui, inputs=[teacher_drop, student_drop], outputs=distill_output)
+            run_inference_btn.click(fn=run_live_hf_inference, inputs=[target_hf_model, user_gen_prompt], outputs=hf_output_box)
             spec_btn.click(fn=run_spec_ui, inputs=[draft_lookahead, test_prompt], outputs=spec_output)
 
 if __name__ == "__main__":
