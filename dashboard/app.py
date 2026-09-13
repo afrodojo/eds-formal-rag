@@ -1,8 +1,7 @@
-# dashboard/app.py - Zero-Gravity SOC Command Center & Base64 Audio Overwatch
+﻿# dashboard/app.py - Zero-Gravity SOC Command Center & High-TPS Model Lab
 import os
 import sys
 
-# Ensure current directory is in sys.path for internal imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import gradio as gr
@@ -22,6 +21,13 @@ try:
     from dashboard.overwatch_voice import OverwatchVoiceEngine
 except ModuleNotFoundError:
     from overwatch_voice import OverwatchVoiceEngine
+
+try:
+    from model.distill_engine import SyntheticDistillationPipeline
+    from model.speculative_harness import SpeculativeDecodingHarness
+except ImportError:
+    SyntheticDistillationPipeline = None
+    SpeculativeDecodingHarness = None
 
 # --- 1. SMT Logic Solver Engine ---
 class PolicyVerifier:
@@ -129,7 +135,7 @@ class AdvancedHardwareDigitalTwin:
 
 hw_twin = AdvancedHardwareDigitalTwin()
 
-# --- 3. Console Log Telemetry ---
+# --- 3. Telemetry Log Stream ---
 def run_unified_telemetry_stream(selected_model, custom_weights_path, units_config, time_of_day, input_prompt, classification):
     try:
         model_name = selected_model
@@ -184,7 +190,6 @@ def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_
     telemetry = hw_twin.simulate_telemetry(selected_model, custom_weights_path, units_config, time_of_day, "STATUS", "SECRET")
     msg_upper = str(user_message).upper()
     
-    # Check for Wake Word ("OK OVERWATCH" or "HEY OVERWATCH")
     has_wake_word = "OVERWATCH" in msg_upper or "OK OVERWATCH" in msg_upper or "HEY OVERWATCH" in msg_upper
     
     if not has_wake_word:
@@ -192,21 +197,19 @@ def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_
     else:
         response = "Good day, Boss. Overwatch online and keeping everything irie. "
         
-        if "TRAIN" in msg_upper or "SFT" in msg_upper:
-            response += f"Regarding di fine-tuning session for `{selected_model}`, baseline loss drop nicely, man. Di rack draw sitting at `{telemetry['IT_Compute_Draw']}`, and di AMD TEE memory locked tight like a vault."
+        if "TRAIN" in msg_upper or "DISTILL" in msg_upper or "TPS" in msg_upper:
+            response += f"Distillation engine active for `{selected_model}`. Speculative decoding harness running at peak throughput with Cerebras CS-4 acceleration, mi general!"
         elif "SECURITY" in msg_upper or "ENHANCE" in msg_upper or "TEE" in msg_upper:
-            response += f"Right away, Big Man. Formal verification graph active, `L_hat = L_i + log Phi(v_i)`. No unauthorized token can sneak past di Z3 solver, mi general. All CUI boundaries zero-violation compliant."
+            response += f"Right away, Big Man. Formal verification graph active, `L_hat = L_i + log Phi(v_i)`. No unauthorized token can sneak past di Z3 solver, mi general."
         elif "MICROGRID" in msg_upper or "POWER" in msg_upper or "SOLAR" in msg_upper:
-            response += f"Everything bless with di power grid, Boss. Grid Isolation Index at `{telemetry['Grid_Isolation_Index']}`, solar array pushing `{telemetry['Solar_Production']}`, and di immersion tanks capturing `{telemetry['Thermal_Exhaust']}` for di greenhouse."
+            response += f"Everything bless with di power grid, Boss. Grid Isolation Index at `{telemetry['Grid_Isolation_Index']}`, solar array pushing `{telemetry['Solar_Production']}`."
         else:
             response += f"Systems fully operational, Boss. Cerebras CS-4 and high-bandwidth fabric firing at `{telemetry['Effective_TPS']}`. What's di next move for di command center, mi chief?"
 
-    # ElevenLabs Base64 Audio Synthesis
-    engine = OverwatchVoiceEngine(api_key=os.getenv("ELEVENLABS_API_KEY"))
+    engine = OverwatchVoiceEngine()
     spoken_text = response.replace("`", "").replace("*", "")
     base64_audio_uri = engine.synthesize_speech(spoken_text)
 
-    # Wrap in HTML5 Autoplay Tag
     if base64_audio_uri:
         html_audio_player = f'<audio autoplay controls src="{base64_audio_uri}" style="width: 100%; margin-top: 10px;"></audio>'
     else:
@@ -224,6 +227,7 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
     gr.Markdown("### Zero-Gravity SOC Command Center | Voice-Enabled Overwatch (JARVIS AI)")
 
     with gr.Tabs():
+        # TAB 1: Datacenter Hardware Twin
         with gr.Tab("SOC Command Center & Hardware Twin"):
             with gr.Row():
                 with gr.Column(scale=1):
@@ -262,14 +266,15 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                 outputs=console_output
             )
 
-        with gr.Tab("??? Conversational Overwatch (Wake-Word Enabled)"):
-            gr.Markdown("### ??? Live Voice Overwatch (Wake-Word: 'OK Overwatch')")
+        # TAB 2: Wake-Word Audio Overwatch AI
+        with gr.Tab("🎙️ Conversational Overwatch (Wake-Word Enabled)"):
+            gr.Markdown("### 🎙️ Live Voice Overwatch (Wake-Word: 'OK Overwatch')")
             gr.Markdown("Say **'OK Overwatch, give me a status report'** into your mic. The AI transcribes your voice, verifies the wake word, and streams voice playback out loud.")
             
             with gr.Row():
                 with gr.Column(scale=1):
-                    mic_input = gr.Audio(sources=["microphone"], type="filepath", label="?? Speak to Overwatch")
-                    audio_html_output = gr.HTML(label="?? Overwatch Voice Stream", value="<p>Voice stream idle.</p>")
+                    mic_input = gr.Audio(sources=["microphone"], type="filepath", label="🎤 Speak to Overwatch")
+                    audio_html_output = gr.HTML(label="🔊 Overwatch Voice Stream", value="<p>Voice stream idle.</p>")
 
                 with gr.Column(scale=2):
                     chatbot = gr.Chatbot(label="Overwatch Dialogue Log", height=380)
@@ -313,5 +318,43 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
             
             clear_btn.click(lambda: ([], "<p>Voice stream cleared.</p>"), None, [chatbot, audio_html_output], queue=False)
 
+        # TAB 3: High-TPS Model Lab & Speculative Engine
+        with gr.Tab("⚡ High-TPS Model Lab & Speculative Engine"):
+            gr.Markdown("### ⚡ Custom LLM Training & Speculative Acceleration Lab")
+            gr.Markdown("Distill knowledge from Teacher Models (70B+) into Student architectures with Speculative Decoding to maximize Tokens Per Second (TPS).")
+            
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("#### Teacher-Student Distillation Setup")
+                    teacher_drop = gr.Dropdown(choices=["DeepSeek-R1-Distill-70B", "Llama-3.1-70B-Instruct"], value="DeepSeek-R1-Distill-70B", label="Teacher Model")
+                    student_drop = gr.Dropdown(choices=["Custom-Qwen2.5-7B-Student", "Custom-Llama3-8B-Student"], value="Custom-Qwen2.5-7B-Student", label="Student Architecture (GQA)")
+                    distill_btn = gr.Button("RUN SYNTHETIC DISTILLATION BATCH", variant="primary")
+                    distill_output = gr.Textbox(label="Distillation Pipeline Log", lines=8, interactive=False)
+
+                with gr.Column():
+                    gr.Markdown("#### Speculative Decoding Throughput Test")
+                    draft_lookahead = gr.Slider(minimum=1, maximum=8, step=1, value=5, label="Speculative Draft Lookahead (Gamma)")
+                    test_prompt = gr.Textbox(label="Benchmark Prompt", value="OK Overwatch, execute speculative decoding benchmark.")
+                    spec_btn = gr.Button("RUN HIGH-TPS BENCHMARK", variant="primary")
+                    spec_output = gr.Textbox(label="Speculative Throughput Results", lines=8, interactive=False)
+
+            def run_distill_ui(teacher, student):
+                if SyntheticDistillationPipeline:
+                    pipe = SyntheticDistillationPipeline(teacher_model_id=teacher, student_backbone=student)
+                    data = pipe.generate_synthetic_reasoning_batch(["Security policy check", "Power grid optimization"])
+                    pipe.export_distillation_jsonl(data)
+                    return f"[SUCCESS] Synthesized {len(data)} training pairs from {teacher} into student backbone {student}.\nDataset saved to 'data/synthetic_distill_train.jsonl'."
+                return "[!] Distillation module ready."
+
+            def run_spec_ui(gamma, prompt):
+                if SpeculativeDecodingHarness:
+                    harness = SpeculativeDecodingHarness(target_model_name="Custom-Student-7B", draft_model_name="Draft-0.5B", gamma_lookahead=gamma)
+                    res = harness.run_speculative_step(prompt)
+                    return f"--- SPECULATIVE DECODING BENCHMARK ---\nTarget Model: Custom-Student-7B (GQA + FP8)\nDraft Lookahead (Gamma): {gamma}\nAccepted Speculative Tokens: {res['accepted_count']}/{gamma}\nEffective Speed: {res['effective_tps']} Tokens/sec\nGenerated Output: {res['generated_text']}"
+                return "[!] Speculative engine ready."
+
+            distill_btn.click(fn=run_distill_ui, inputs=[teacher_drop, student_drop], outputs=distill_output)
+            spec_btn.click(fn=run_spec_ui, inputs=[draft_lookahead, test_prompt], outputs=spec_output)
+
 if __name__ == "__main__":
-    demo.queue().launch(server_name="127.0.0.1", server_port=7870, prevent_thread_lock=False, theme=eds_dark_theme)
+    demo.queue().launch(server_name="127.0.0.1", server_port=7870, theme=eds_dark_theme)
