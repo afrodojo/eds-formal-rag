@@ -1,31 +1,34 @@
-﻿from huggingface_hub import HfApi, create_repo
+﻿# model/hf_sync.py - Syncs local model weights and constraints to Hugging Face Hub
 import os
+import sys
+from huggingface_hub import HfApi, create_repo
 
-class HuggingFaceSyncEngine:
-    """
-    Automates deployment of fine-tuned adapter weights and SMT datasets
-    to the dassensei Hugging Face organization hub.
-    """
-    def __init__(self, repo_id: str = "dassensei/sat-constrained-qwen-poc"):
-        self.repo_id = repo_id
-        self.api = HfApi()
+def sync_repository(repo_id="dassensei/sat-constrained-qwen-poc", local_dir="."):
+    """Pushes local project changes directly to Hugging Face Model Hub."""
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        print("[!] HF_TOKEN environment variable not set. Please log in via 'huggingface-cli login' or set HF_TOKEN.")
+        return False
 
-    def upload_model_checkpoints(self, local_folder: str = "./checkpoints"):
-        if not os.path.exists(local_folder):
-            print(f"Creating local checkpoint directory '{local_folder}' for initial sync...")
-            os.makedirs(local_folder, exist_ok=True)
-            with open(os.path.join(local_folder, "README.md"), "w") as f:
-                f.write("# SMT-Constrained Qwen Adapter Checkpoints\nTarget Repo: dassensei/sat-constrained-qwen-poc\n")
-
-        print(f"Uploading checkpoints from '{local_folder}' to HF Repo '{self.repo_id}'...")
-        self.api.upload_folder(
-            folder_path=local_folder,
-            repo_id=self.repo_id,
+    api = HfApi()
+    try:
+        print(f"[*] Verifying repository target: {repo_id}")
+        create_repo(repo_id=repo_id, token=hf_token, exist_ok=True, repo_type="model")
+        
+        print(f"[*] Uploading files from {local_dir} to Hugging Face Hub...")
+        api.upload_folder(
+            folder_path=local_dir,
+            repo_id=repo_id,
             repo_type="model",
-            commit_message="feat: deployment of SMT-constrained Qwen adapter weights and metadata"
+            token=hf_token,
+            ignore_patterns=["*.git*", "__pycache__*", "*.vhdx", "*.tmp"]
         )
-        print("--- HUGGING FACE SYNC COMPLETE ---")
+        print(f"[SUCCESS] Repository {repo_id} updated successfully on Hugging Face Hub.")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to sync with Hugging Face: {str(e)}")
+        return False
 
 if __name__ == "__main__":
-    sync_engine = HuggingFaceSyncEngine()
-    sync_engine.upload_model_checkpoints()
+    target_repo = sys.argv[1] if len(sys.argv) > 1 else "dassensei/sat-constrained-qwen-poc"
+    sync_repository(repo_id=target_repo)
