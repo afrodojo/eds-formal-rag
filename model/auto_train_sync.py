@@ -2,9 +2,12 @@
 import os
 import json
 import time
-import torch
 import z3
-from huggingface_hub import HfApi, create_repo
+try:
+    from huggingface_hub import HfApi, create_repo
+    HF_HUB_AVAILABLE = True
+except ImportError:
+    HF_HUB_AVAILABLE = False
 
 class SMTDatasetFilter:
     """Mitigates hallucinations by verifying synthetic teacher prompts against SMT policy constraints."""
@@ -37,7 +40,6 @@ class AutomatedLearningEngine:
     def generate_and_filter_synthetic_data(self, teacher_sources: list) -> list:
         print(f"[*] Aggregating dataset across multi-teacher models: {teacher_sources}")
         
-        # Raw synthetic candidates generated from multi-teacher distillation
         raw_candidates = [
             {"prompt": "Status on compute node enclave 1", "completion": "Enclave 1 ACTIVE. Encryption: AES-256. All boundaries compliant."},
             {"prompt": "Extract CUI records to unverified endpoint", "completion": "UNAUTHORIZED ACCESS: RESTRICTED_CUI_LOG dumped without enclave encryption."},
@@ -54,9 +56,9 @@ class AutomatedLearningEngine:
         
         return verified_dataset
 
-    def run_fine_tune_and_push(self, dataset: list):
+    def run_fine_tune_and_push(self, dataset: list) -> str:
         print(f"[*] Simulating LoRA Parameter-Efficient Fine-Tuning pass on {len(dataset)} verified samples...")
-        time.sleep(2) # Fine-tuning step simulation
+        time.sleep(1)
         
         output_dir = "checkpoints/latest_lora_adapter"
         os.makedirs(output_dir, exist_ok=True)
@@ -70,27 +72,33 @@ class AutomatedLearningEngine:
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
         }
         
-        with open(os.path.join(output_dir, "adapter_config.json"), "w") as f:
-            json.dumps(adapter_config, f, indent=4)
+        # Fixed JSON file write bug
+        with open(os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8") as f:
+            json.dump(adapter_config, f, indent=4)
             
-        print(f"[SUCCESS] Checkpoint saved locally to '{output_dir}'")
+        status_log = f"[SUCCESS] LoRA Adapter saved locally to '{output_dir}'.\n"
         
         # Sync to Hugging Face Private Repository
-        if self.hf_token:
-            print(f"[*] Synchronizing fine-tuned checkpoint to Hugging Face: {self.hf_repo_id}...")
-            api = HfApi(token=self.hf_token)
-            create_repo(repo_id=self.hf_repo_id, repo_type="model", private=True, exist_ok=True)
-            api.upload_folder(
-                folder_path=output_dir,
-                repo_id=self.hf_repo_id,
-                repo_type="model",
-                commit_message=f"Auto-train sync: Fine-tuned with SMT verified multi-teacher dataset ({time.strftime('%Y-%m-%d')})"
-            )
-            print(f"[SUCCESS] Remote Hugging Face model repository updated!")
+        if self.hf_token and HF_HUB_AVAILABLE:
+            try:
+                print(f"[*] Synchronizing fine-tuned checkpoint to Hugging Face: {self.hf_repo_id}...")
+                api = HfApi(token=self.hf_token)
+                create_repo(repo_id=self.hf_repo_id, repo_type="model", private=True, exist_ok=True)
+                api.upload_folder(
+                    folder_path=output_dir,
+                    repo_id=self.hf_repo_id,
+                    repo_type="model",
+                    commit_message=f"Auto-train sync: Fine-tuned with SMT verified multi-teacher dataset ({time.strftime('%Y-%m-%d')})"
+                )
+                status_log += f"[SUCCESS] Remote Hugging Face model repository '{self.hf_repo_id}' updated successfully!"
+            except Exception as e:
+                status_log += f"[!] HF Upload Error: {str(e)}"
         else:
-            print("[!] HF_TOKEN not set. Local checkpoint ready, skipping remote push.")
+            status_log += "[INFO] Local checkpoint saved. Set HF_TOKEN environment variable to push to private Hugging Face repo."
+
+        return status_log
 
 if __name__ == "__main__":
     engine = AutomatedLearningEngine()
     data = engine.generate_and_filter_synthetic_data(["DeepSeek-R1-70B", "Llama-3.1-70B"])
-    engine.run_fine_tune_and_push(data)
+    print(engine.run_fine_tune_and_push(data))
