@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center (Unified 4-Tab Layout)
+﻿# dashboard/app.py - Zero-Gravity SOC Command Center (Gradio 6.0 Cleaned)
 import os
 import sys
 
@@ -254,7 +254,7 @@ def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_
 
     return response, html_audio_player
 
-# --- 5. UI Layout with Theme Sync ---
+# --- 5. UI Layout ---
 js_theme_persistence = """
 function() {
     let currentTheme = localStorage.getItem('eds_theme_pref') || 'dark';
@@ -267,7 +267,7 @@ eds_dark_theme = gr.themes.Soft(primary_hue="cyan", neutral_hue="slate").set(
     body_background_fill="#090d16", block_background_fill="#0f172a", block_border_color="#1e293b", body_text_color="#cbd5e1"
 )
 
-with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persistence) as demo:
+with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
     gr.Markdown("# EMERGING DEFENSE SOLUTIONS (EDS)")
     gr.Markdown("### Zero-Gravity SOC Command Center | Voice-Enabled Overwatch (JARVIS AI)")
 
@@ -424,8 +424,8 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persiste
                 if AutomatedLearningEngine:
                     engine = AutomatedLearningEngine(hf_repo_id=repo_id)
                     dataset = engine.generate_and_filter_synthetic_data(teachers)
-                    engine.run_fine_tune_and_push(dataset)
-                    return f"--- AUTOMATED LEARNING & HF SYNC COMPLETE ---\nTarget HF Repo: {repo_id}\nTeachers Ingested: {teachers}\nVerified Dataset Size: {len(dataset)} samples\nSMT Hallucination Mitigation: SAT (Zero Violation Probability)\nCheckpoints uploaded to Hugging Face successfully!"
+                    res_summary = engine.run_fine_tune_and_push(dataset)
+                    return f"--- AUTOMATED LEARNING & HF SYNC COMPLETE ---\nTarget HF Repo: {repo_id}\nTeachers Ingested: {teachers}\nVerified Dataset Size: {len(dataset)} samples\nSMT Hallucination Mitigation: SAT (Zero Violation Probability)\n\nExecution Log:\n{res_summary}"
                 return "[!] Automated learning engine module ready."
 
             run_inference_btn.click(fn=run_live_hf_inference, inputs=[target_hf_model, user_gen_prompt], outputs=hf_output_box)
@@ -465,4 +465,4 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persiste
             gen_grant_btn.click(fn=trigger_grant_doc, outputs=grant_output_box)
 
 if __name__ == "__main__":
-    demo.queue().launch(server_name="127.0.0.1", server_port=7870, theme=eds_dark_theme)
+    demo.queue().launch(server_name="127.0.0.1", server_port=7870, theme=eds_dark_theme, js=js_theme_persistence)
