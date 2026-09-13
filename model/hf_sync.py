@@ -1,34 +1,51 @@
-﻿# model/hf_sync.py - Syncs local model weights and constraints to Hugging Face Hub
+﻿# model/hf_sync.py - Hugging Face Hub Synchronization Engine
 import os
-import sys
+import argparse
 from huggingface_hub import HfApi, create_repo
 
-def sync_repository(repo_id="dassensei/sat-constrained-qwen-poc", local_dir="."):
-    """Pushes local project changes directly to Hugging Face Model Hub."""
-    hf_token = os.getenv("HF_TOKEN")
-    if not hf_token:
-        print("[!] HF_TOKEN environment variable not set. Please log in via 'huggingface-cli login' or set HF_TOKEN.")
-        return False
+class HuggingFaceSyncEngine:
+    def __init__(self, token: str = None):
+        self.token = token or os.getenv("HF_TOKEN")
+        if not self.token:
+            print("[!] Warning: HF_TOKEN environment variable not set. Write operations may fail.")
+        self.api = HfApi(token=self.token)
 
-    api = HfApi()
-    try:
-        print(f"[*] Verifying repository target: {repo_id}")
-        create_repo(repo_id=repo_id, token=hf_token, exist_ok=True, repo_type="model")
-        
-        print(f"[*] Uploading files from {local_dir} to Hugging Face Hub...")
-        api.upload_folder(
-            folder_path=local_dir,
-            repo_id=repo_id,
-            repo_type="model",
-            token=hf_token,
-            ignore_patterns=["*.git*", "__pycache__*", "*.vhdx", "*.tmp"]
-        )
-        print(f"[SUCCESS] Repository {repo_id} updated successfully on Hugging Face Hub.")
-        return True
-    except Exception as e:
-        print(f"[ERROR] Failed to sync with Hugging Face: {str(e)}")
-        return False
+    def create_repository(self, repo_id: str, repo_type: str = "model", private: bool = False):
+        """Creates a repository on Hugging Face if it does not already exist."""
+        try:
+            url = create_repo(repo_id=repo_id, token=self.token, repo_type=repo_type, private=private, exist_ok=True)
+            print(f"[SUCCESS] Target repository ready: {url}")
+            return url
+        except Exception as e:
+            print(f"[!] Repository creation error: {str(e)}")
+            return None
+
+    def push_directory(self, local_dir: str, repo_id: str, repo_type: str = "model", commit_message: str = "Upload model artifacts"):
+        """Uploads an entire local folder to the specified Hugging Face repository."""
+        if not os.path.exists(local_dir):
+            print(f"[!] Local directory '{local_dir}' does not exist.")
+            return
+
+        self.create_repository(repo_id=repo_id, repo_type=repo_type)
+
+        print(f"[*] Uploading '{local_dir}' -> Hugging Face Repo: {repo_id}...")
+        try:
+            self.api.upload_folder(
+                folder_path=local_dir,
+                repo_id=repo_id,
+                repo_type=repo_type,
+                commit_message=commit_message
+            )
+            print(f"[SUCCESS] Folder '{local_dir}' successfully synced to Hugging Face repository '{repo_id}'!")
+        except Exception as e:
+            print(f"[!] Error uploading to Hugging Face: {str(e)}")
 
 if __name__ == "__main__":
-    target_repo = sys.argv[1] if len(sys.argv) > 1 else "dassensei/sat-constrained-qwen-poc"
-    sync_repository(repo_id=target_repo)
+    parser = argparse.ArgumentParser(description="Hugging Face Synchronization Engine")
+    parser.add_argument("--local-dir", type=str, default="data", help="Path to local directory to sync")
+    parser.add_argument("--repo-id", type=str, default="dassensei/sat-constrained-qwen-poc", help="Hugging Face target repo ID")
+    parser.add_argument("--repo-type", type=str, default="model", choices=["model", "dataset", "space"], help="Type of repository")
+    args = parser.parse_args()
+
+    engine = HuggingFaceSyncEngine()
+    engine.push_directory(local_dir=args.local_dir, repo_id=args.repo_id, repo_type=args.repo_type)
