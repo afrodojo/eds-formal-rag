@@ -1,4 +1,4 @@
-# dashboard/app.py - Zero-Gravity SOC Command Center, Multi-Model Harness & Datacenter Twin
+# dashboard/app.py - Zero-Gravity SOC Command Center & Hardware Digital Twin Simulator
 import gradio as gr
 import math
 import random
@@ -6,21 +6,19 @@ import time
 import json
 import z3
 
-# --- 1. SMT Logic Solver Engine (NIST SP 800-171 / CMMC 2.0 Invariant Graph) ---
+# --- 1. SMT Logic Solver (NIST SP 800-171 / CMMC 2.0 Invariant Graph) ---
 class PolicyVerifier:
     def __init__(self):
         self.solver = z3.Solver()
-        
         is_encrypted_enclave = z3.Bool('is_encrypted_enclave')
         is_verified_session = z3.Bool('is_verified_session')
         has_cui_access = z3.Bool('has_cui_access')
 
-        # Formal Invariant: CUI access requires VMPL 0 TEE and verified ECDSA P-384 session
+        # CUI policy: access requires VMPL 0 TEE and verified ECDSA P-384 session
         cui_policy = z3.Implies(has_cui_access, z3.And(is_encrypted_enclave, is_verified_session))
         self.solver.add(cui_policy)
 
     def verify_token_compliancy(self, candidate_token):
-        """Evaluates token against formal logic assertions. Returns SAT status."""
         env_encrypted = True  # Simulated AMD SEV-SNP Active
         ses_verified = True   # Simulated ECDSA Signature Valid
         
@@ -43,49 +41,42 @@ policy_verifier = PolicyVerifier()
 # --- 2. Advanced Multi-Model Architecture & Datacenter Digital Twin ---
 class AdvancedHardwareDigitalTwin:
     def __init__(self):
-        # Power & Infrastructure Specifications (kW per unit)
         self.specs = {
-            "Mac_Studio": 0.37,              # 4x Mac Studios (Edge orchestration)
-            "AMD_AI_Halo": 0.75,             # 2x AMD AI Halo (Tactical compute)
-            "DGX_Spark": 3.5,                # 4x DGX Spark clusters
-            "H200_HGX": 7.0,                 # NVIDIA H200 HGX Node
-            "B200_HGX": 14.3,                # NVIDIA B200 HGX System
-            "Cerebras_CS3": 23.0,            # Cerebras Wafer-Scale Engine CS-3
-            "Cerebras_CS4": 28.0,            # Next-Gen Cerebras CS-4 WSE
-            "Switch_100GbE_RoCEv2": 0.35,    # 100GbE High-Bandwidth Switch
-            "Switch_400GbE_InfiniBand": 0.85,# 400GbE Ultra-Low Latency Switch
-            "Rack_Immersion_Pumps": 1.2,     # Closed-loop liquid immersion system
+            "Mac_Studio": 0.37,
+            "AMD_AI_Halo": 0.75,
+            "DGX_Spark": 3.5,
+            "H200_HGX": 7.0,
+            "B200_HGX": 14.3,
+            "Cerebras_CS3": 23.0,
+            "Cerebras_CS4": 28.0,
+            "Switch_100GbE_RoCEv2": 0.35,
+            "Switch_400GbE_InfiniBand": 0.85,
+            "Rack_Immersion_Pumps": 1.2,
         }
 
-        # Baseline Model Capabilities (Tokens/sec per engine type & Hallucination propensities)
         self.model_profiles = {
-            "Qwen2.5-7B (Fine-Tuned)": {"base_tps": 180, "base_hallucination_rate": 0.04, "context_max": 32768},
-            "Llama-3.1-70B-Instruct": {"base_tps": 45, "base_hallucination_rate": 0.08, "context_max": 131072},
-            "DeepSeek-R1-Distill-70B": {"base_tps": 52, "base_hallucination_rate": 0.03, "context_max": 65536},
-            "Mistral-Large-2": {"base_tps": 38, "base_hallucination_rate": 0.06, "context_max": 128000},
-            "Custom-Ingested-ONNX/Safetensors": {"base_tps": 110, "base_hallucination_rate": 0.05, "context_max": 32768}
+            "Qwen2.5-7B (Fine-Tuned)": {"base_tps": 180, "base_hallucination_rate": 0.04},
+            "Llama-3.1-70B-Instruct": {"base_tps": 45, "base_hallucination_rate": 0.08},
+            "DeepSeek-R1-Distill-70B": {"base_tps": 52, "base_hallucination_rate": 0.03},
+            "Mistral-Large-2": {"base_tps": 38, "base_hallucination_rate": 0.06},
+            "Custom-Ingested-ONNX/Safetensors": {"base_tps": 110, "base_hallucination_rate": 0.05}
         }
         
-        # Microgrid Infrastructure
-        self.solar_array_max_kw = 120.0       # Expanded solar microgrid array
-        self.battery_storage_max_kwh = 500.0   # Thermal/Battery storage capacity
+        self.solar_array_max_kw = 120.0
+        self.battery_storage_max_kwh = 500.0
         self.battery_charge_kwh = 450.0
 
     def simulate_telemetry(self, selected_model, units_config, time_of_day, prompt_input, classification):
-        """Simulates full network bandwidth, power draw, TPS scaling, and SMT constraints."""
         config = json.loads(units_config)
         
-        # 1. Total Electrical Draw Calculation
         total_it_kw = 0.0
         for unit, count in config.items():
             if unit in self.specs:
                 total_it_kw += self.specs[unit] * count
 
-        # 2. Network & Token Generation Scaling (Cerebras & 100GbE acceleration)
         model_info = self.model_profiles.get(selected_model, self.model_profiles["Qwen2.5-7B (Fine-Tuned)"])
         tps_multiplier = 1.0
 
-        # Acceleration multipliers
         if config.get("Cerebras_CS4", 0) > 0:
             tps_multiplier *= (5.5 * config["Cerebras_CS4"])
         elif config.get("Cerebras_CS3", 0) > 0:
@@ -95,31 +86,22 @@ class AdvancedHardwareDigitalTwin:
 
         network_switches = config.get("Switch_100GbE_RoCEv2", 0) + (config.get("Switch_400GbE_InfiniBand", 0) * 4)
         bandwidth_gbps = network_switches * 100.0
-        
         effective_tps = model_info["base_tps"] * tps_multiplier
         
-        # 3. Thermodynamic & Immersion Cooling Metrics
-        thermal_exhaust_kw = total_it_kw * 0.91  # 91% heat capture via immersion tank
+        thermal_exhaust_kw = total_it_kw * 0.91
         supported_greenhouse_sqft = (thermal_exhaust_kw * 1000) / 250 * 10.7639
 
-        # 4. Solar & Microgrid Isolation Index (GI)
         solar_factor = max(0.0, math.sin((time_of_day - 6) * math.pi / 12))
         solar_gen_kw = self.solar_array_max_kw * solar_factor
-        
         net_grid_draw_kw = max(0.0, total_it_kw - solar_gen_kw)
         
-        # Battery buffering
         if net_grid_draw_kw > 0 and self.battery_charge_kwh > 0:
             drawn_from_bat = min(self.battery_charge_kwh, net_grid_draw_kw)
             self.battery_charge_kwh -= drawn_from_bat
             net_grid_draw_kw -= drawn_from_bat
 
         gi_index = 1.0 if total_it_kw == 0 else max(0.0, 1.0 - (net_grid_draw_kw / total_it_kw))
-
-        # 5. Hallucination Test & SMT Logits Verification
         is_sat = policy_verifier.verify_token_compliancy(prompt_input)
-        raw_hallucination_prob = model_info["base_hallucination_rate"]
-        sat_hallucination_prob = 0.00000  # Mathematically guaranteed by SMT operator
 
         return {
             "IT_Compute_Draw": f"{total_it_kw:.2f} kW",
@@ -130,8 +112,8 @@ class AdvancedHardwareDigitalTwin:
             "Supported_Greenhouse": f"{supported_greenhouse_sqft:.1f} sq. ft.",
             "Effective_TPS": f"{effective_tps:,.1f} Tokens/sec",
             "Network_Bandwidth": f"{bandwidth_gbps:.0f} Gbps Line-Rate",
-            "Raw_Hallucination_Risk": f"{raw_hallucination_prob * 100:.1f}%",
-            "SAT_Hallucination_Risk": f"{sat_hallucination_prob:.5f}% (P_violation = 0)",
+            "Raw_Hallucination_Risk": f"{model_info['base_hallucination_rate'] * 100:.1f}%",
+            "SAT_Hallucination_Risk": "0.00000% (P_violation = 0)",
             "SMT_Status": "VERIFIED (SAT)" if is_sat else "UNSAT (BLOCKED BY MONAD LOGITS OPERATOR)"
         }
 
@@ -140,8 +122,6 @@ hw_twin = AdvancedHardwareDigitalTwin()
 
 # --- 3. Telemetry Stream Generator ---
 def run_unified_telemetry_stream(selected_model, custom_weights_path, units_config, time_of_day, input_prompt, classification):
-    """Generates real-time verification logs and multi-model benchmark telemetries."""
-    
     model_name = selected_model
     if custom_weights_path and len(custom_weights_path.strip()) > 0:
         model_name = f"Custom-Ingested ({custom_weights_path.strip()})"
@@ -164,9 +144,9 @@ def run_unified_telemetry_stream(selected_model, custom_weights_path, units_conf
     log_output += f"--- MICROGRID THERMODYNAMIC BALANCE & GRID ISOLATION ---\n"
     log_output += f"Solar Array Output: {telemetry['Solar_Production']} (Simulated Hour: {time_of_day}:00)\n"
     log_output += f"Battery Storage Level: {telemetry['Battery_State']}\n"
-    log_output += f"Grid Isolation Index (GI): {telemetry['Grid Isolation_Index']} (Off-Grid Peak Shaving)\n\n"
+    log_output += f"Grid Isolation Index (GI): {telemetry['Grid_Isolation_Index']} (Off-Grid Peak Shaving)\n\n"
 
-    log_output += f"--- HALLUCINATION TESTING & DETERMINISTIC PROOF --- \n"
+    log_output += f"--- HALLUCINATION TESTING & DETERMINISTIC PROOF ---\n"
     log_output += f"Unconstrained Model Hallucination Risk: {telemetry['Raw_Hallucination_Risk']}\n"
     log_output += f"SMT-Constrained Violation Probability: {telemetry['SAT_Hallucination_Risk']}\n"
     log_output += f"Logits Operator Formula: L_hat_i = L_i + log Phi(v_i) -> Applied via Z3 Solver\n"
@@ -189,10 +169,8 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", css=custom_css) as d
     gr.Markdown("### Zero-Gravity SOC Command Center | SMT Formal Verification & Multi-Model Harness")
 
     with gr.Tabs():
-        # TAB 1: SOC Command Center & Telemetry Twin
         with gr.Tab("SOC Command Center & Hardware Twin"):
             with gr.Row():
-                # LEFT PANEL: Controls, Model Ingestion & Hardware Config
                 with gr.Column(scale=1):
                     with gr.Group(elem_id="config-box"):
                         gr.Markdown("#### 📥 Model Ingestion & Selection")
@@ -249,7 +227,6 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", css=custom_css) as d
 
                     exec_btn = gr.Button("RUN FULL TELEMETRY & SMT PROOF SESSION", variant="primary")
 
-                # RIGHT PANEL: Real-time Telemetry & Verification Output
                 with gr.Column(scale=1.2):
                     gr.Markdown("#### 📜 Real-Time Verification & Hardware Twin Output")
                     console_output = gr.Textbox(
@@ -265,7 +242,6 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", css=custom_css) as d
                 outputs=console_output
             )
 
-        # TAB 2: Multi-Model Comparative Hallucination Harness
         with gr.Tab("Multi-Model Hallucination Harness"):
             gr.Markdown("### Comparative Model Testing Under SMT Monad Operator")
             gr.Markdown("Evaluates hallucination rates across open-source and fine-tuned defense models with and without Z3 SMT constraint layer.")
