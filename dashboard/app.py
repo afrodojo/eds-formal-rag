@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Live Local Inference Engine
+﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Accelerated CUDA Inference Engine
 import os
 import sys
 
@@ -43,7 +43,7 @@ def get_hf_model_and_tokenizer(model_id: str):
     if model_id in LOADED_MODELS:
         return LOADED_MODELS[model_id]
     
-    print(f"[*] Loading model '{model_id}' into VRAM...")
+    print(f"[*] Loading model '{model_id}' into VRAM with SDPA CUDA acceleration...")
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -53,17 +53,18 @@ def get_hf_model_and_tokenizer(model_id: str):
         model_id, 
         torch_dtype=dtype, 
         device_map=device,
+        attn_implementation="sdpa",  # Scaled Dot-Product Attention for high bandwidth
         trust_remote_code=True
     )
     model.eval()
     
-    # Warmup pass
-    dummy_input = tokenizer("Warmup", return_tensors="pt").to(device)
+    # Warmup CUDA kernels
+    dummy_input = tokenizer("Warmup pass", return_tensors="pt").to(device)
     with torch.inference_mode():
         _ = model.generate(**dummy_input, max_new_tokens=2)
 
     LOADED_MODELS[model_id] = (model, tokenizer)
-    print(f"[SUCCESS] Model '{model_id}' loaded and warmed up on {device.upper()}!")
+    print(f"[SUCCESS] Model '{model_id}' loaded with active SDPA acceleration!")
     return model, tokenizer
 
 # --- 1. SMT Logic Solver Engine ---
@@ -352,13 +353,13 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
 
         with gr.Tab("⚡ High-TPS Model Lab & Local HF Inference"):
             gr.Markdown("### ⚡ Custom LLM Real-Time Inference & Speculative Lab")
-            gr.Markdown("Run local inference using PyTorch/Transformers models (`Qwen2.5-0.5B-Instruct`) with active SOC Overwatch System Prompts.")
+            gr.Markdown("Run local inference using PyTorch/Transformers models (`Qwen2.5-0.5B-Instruct`) with SDPA CUDA kernels.")
             
             with gr.Row():
                 with gr.Column():
-                    gr.Markdown("#### Real PyTorch / CUDA Inference Test")
+                    gr.Markdown("#### Real PyTorch / SDPA CUDA Inference Test")
                     target_hf_model = gr.Textbox(label="Hugging Face Model ID", value="Qwen/Qwen2.5-0.5B-Instruct")
-                    user_gen_prompt = gr.Textbox(label="Prompt Input", value="OK Overwatch, execute system health check.")
+                    user_gen_prompt = gr.Textbox(label="Prompt Input", value="Report status on compute nodes and security boundaries.")
                     run_inference_btn = gr.Button("RUN LOCAL PYTORCH GENERATION", variant="primary")
                     hf_output_box = gr.Textbox(label="Generated Output Stream", lines=8, interactive=False)
 
@@ -376,14 +377,10 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                     model, tokenizer = get_hf_model_and_tokenizer(model_id)
                     device = "cuda" if torch.cuda.is_available() else "cpu"
                     
-                    # Apply System Chat Template so the model acts as the Overwatch SOC Assistant
-                    messages = [
-                        {"role": "system", "content": "You are Overwatch, an elite security and infrastructure AI assistant for the Zero-Gravity SOC Command Center. Respond professionally and concisely to operational commands."},
-                        {"role": "user", "content": prompt}
-                    ]
+                    system_directive = "You are the Overwatch SOC Command Center AI. Provide a clear, technical operational status report for the system."
+                    full_prompt = f"<|im_start|>system\n{system_directive}<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
                     
-                    formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-                    inputs = tokenizer(formatted_prompt, return_tensors="pt").to(device)
+                    inputs = tokenizer(full_prompt, return_tensors="pt").to(device)
                     
                     start_t = time.perf_counter()
                     with torch.inference_mode():
@@ -391,7 +388,8 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                             **inputs, 
                             max_new_tokens=60,
                             do_sample=True,
-                            temperature=0.7,
+                            temperature=0.6,
+                            top_p=0.9,
                             use_cache=True
                         )
                     if device == "cuda":
@@ -402,11 +400,10 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                     tokens_generated = len(outputs[0]) - len(inputs["input_ids"][0])
                     calc_tps = tokens_generated / max(elapsed, 0.001)
                     
-                    # Extract generated response text
                     response_ids = outputs[0][len(inputs["input_ids"][0]):]
                     gen_text = tokenizer.decode(response_ids, skip_special_tokens=True)
                     
-                    return f"--- LOCAL PYTORCH CUDA INFERENCE RESULT ---\nDevice: {device.upper()}\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
+                    return f"--- ACCELERATED SDPA CUDA INFERENCE RESULT ---\nDevice: {device.upper()}\nAttention Kernel: SDPA (Scaled Dot-Product Attention)\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
                 except Exception as e:
                     return f"[!] Inference Error: {str(e)}"
 
