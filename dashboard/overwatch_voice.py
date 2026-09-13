@@ -1,4 +1,4 @@
-﻿# dashboard/overwatch_voice.py - ElevenLabs Voice Engine
+﻿# dashboard/overwatch_voice.py - ElevenLabs Voice Engine (Sanitized for Remote Push)
 import os
 import tempfile
 import uuid
@@ -10,8 +10,8 @@ try:
 except ImportError:
     ELEVEN_AVAILABLE = False
 
-# Paste your active ElevenLabs API Key here
-HARDCODED_KEY = "YOUR_ELEVENLABS_API_KEY_HERE"  # Replace with your key string
+# Set to "YOUR_ELEVENLABS_API_KEY_HERE" to rely strictly on env variable ELEVENLABS_API_KEY
+HARDCODED_KEY = "YOUR_ELEVENLABS_API_KEY_HERE"
 
 class OverwatchVoiceEngine:
     def __init__(self, api_key: str = None, voice_id: str = "21m00Tcm4TlvDq8ikWAM"): 
