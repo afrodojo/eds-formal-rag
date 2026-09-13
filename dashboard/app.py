@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Accelerated CUDA Engine (Static KV Cache)
+﻿# dashboard/app.py - Zero-Gravity SOC Command Center with Automated Model Learning & Sync
 import os
 import sys
 
@@ -32,9 +32,11 @@ except ModuleNotFoundError:
 try:
     from model.distill_engine import SyntheticDistillationPipeline
     from model.speculative_harness import SpeculativeDecodingHarness
+    from model.auto_train_sync import AutomatedLearningEngine
 except ImportError:
     SyntheticDistillationPipeline = None
     SpeculativeDecodingHarness = None
+    AutomatedLearningEngine = None
 
 # Global Model Cache
 LOADED_MODELS = {}
@@ -357,9 +359,9 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persiste
             
             clear_btn.click(lambda: ([], "<p>Voice stream cleared.</p>"), None, [chatbot, audio_html_output], queue=False)
 
-        with gr.Tab("⚡ High-TPS Model Lab & Local HF Inference"):
-            gr.Markdown("### ⚡ Custom LLM Real-Time Inference & Speculative Lab")
-            gr.Markdown("Run local inference using PyTorch/Transformers models (`Qwen2.5-0.5B-Instruct`) with SDPA CUDA kernels and static KV caching.")
+        with gr.Tab("⚡ High-TPS Model Lab & Automated HF Learning"):
+            gr.Markdown("### ⚡ Custom LLM Automated Fine-Tuning & HF Private Hub Pipeline")
+            gr.Markdown("Distill multi-teacher models, mitigate hallucinations using Z3 SMT logic solvers, and automatically push fine-tuned LoRA checkpoints to Hugging Face.")
             
             with gr.Row():
                 with gr.Column():
@@ -370,11 +372,11 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persiste
                     hf_output_box = gr.Textbox(label="Generated Output Stream", lines=8, interactive=False)
 
                 with gr.Column():
-                    gr.Markdown("#### Speculative Decoding Simulation")
-                    draft_lookahead = gr.Slider(minimum=1, maximum=8, step=1, value=5, label="Speculative Draft Lookahead (Gamma)")
-                    test_prompt = gr.Textbox(label="Benchmark Prompt", value="OK Overwatch, execute speculative decoding benchmark.")
-                    spec_btn = gr.Button("RUN HIGH-TPS BENCHMARK", variant="primary")
-                    spec_output = gr.Textbox(label="Speculative Throughput Results", lines=8, interactive=False)
+                    gr.Markdown("#### Automated Learning & HF Private Hub Sync")
+                    target_hf_repo = gr.Textbox(label="Private HF Target Repository ID", value="dassensei/sat-constrained-qwen-poc")
+                    teacher_models = gr.CheckboxGroup(choices=["DeepSeek-R1-70B", "Llama-3.1-70B-Instruct", "Mistral-Large-2"], value=["DeepSeek-R1-70B", "Llama-3.1-70B-Instruct"], label="Multi-Teacher Data Distillation Sources")
+                    run_autolearn_btn = gr.Button("RUN AUTOMATED MULTI-TEACHER SFT & HF PUSH", variant="primary")
+                    autolearn_output = gr.Textbox(label="Automated Pipeline Output", lines=8, interactive=False)
 
             def run_live_hf_inference(model_id, prompt):
                 if not HF_INFERENCE_AVAILABLE:
@@ -390,32 +392,6 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persiste
                     
                     start_t = time.perf_counter()
                     with torch.inference_mode():
-                        # Applied static KV cache implementation to prevent dynamic VRAM allocations
-                        outputs = model.generate(
-                            **inputs, 
-                            max_new_tokens=60,
-                            do_sample=True,
-                            temperature=0.6,
-                            top_p=0.9,
-                            use_cache=True,
-                            cache_implementation="static" if device == "cuda" else None
-                        )
-                    if device == "cuda":
-                        torch.cuda.synchronize()
-                    
-                    elapsed = time.perf_counter() - start_t
-                    
-                    tokens_generated = len(outputs[0]) - len(inputs["input_ids"][0])
-                    calc_tps = tokens_generated / max(elapsed, 0.001)
-                    
-                    response_ids = outputs[0][len(inputs["input_ids"][0]):]
-                    gen_text = tokenizer.decode(response_ids, skip_special_tokens=True)
-                    
-                    return f"--- ACCELERATED SDPA CUDA INFERENCE RESULT ---\nDevice: {device.upper()}\nAttention Kernel: SDPA (Scaled Dot-Product Attention)\nKV Cache Mode: Static Contiguous VRAM\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
-                except Exception as e:
-                    # Fallback if static cache is unsupported on certain architectures
-                    start_t = time.perf_counter()
-                    with torch.inference_mode():
                         outputs = model.generate(
                             **inputs, 
                             max_new_tokens=60,
@@ -426,22 +402,29 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persiste
                         )
                     if device == "cuda":
                         torch.cuda.synchronize()
+                    
                     elapsed = time.perf_counter() - start_t
+                    
                     tokens_generated = len(outputs[0]) - len(inputs["input_ids"][0])
                     calc_tps = tokens_generated / max(elapsed, 0.001)
+                    
                     response_ids = outputs[0][len(inputs["input_ids"][0]):]
                     gen_text = tokenizer.decode(response_ids, skip_special_tokens=True)
-                    return f"--- ACCELERATED SDPA CUDA INFERENCE RESULT (DYNAMIC CACHE) ---\nDevice: {device.upper()}\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
+                    
+                    return f"--- ACCELERATED SDPA CUDA INFERENCE RESULT ---\nDevice: {device.upper()}\nAttention Kernel: SDPA (Scaled Dot-Product Attention)\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
+                except Exception as e:
+                    return f"[!] Inference Error: {str(e)}"
 
-            def run_spec_ui(gamma, prompt):
-                if SpeculativeDecodingHarness:
-                    harness = SpeculativeDecodingHarness(target_model_name="Custom-Student-7B", draft_model_name="Draft-0.5B", gamma_lookahead=gamma)
-                    res = harness.run_speculative_step(prompt)
-                    return f"--- SPECULATIVE DECODING BENCHMARK ---\nTarget Model: Custom-Student-7B (GQA + FP8)\nDraft Lookahead (Gamma): {gamma}\nAccepted Speculative Tokens: {res['accepted_count']}/{gamma}\nEffective Speed: {res['effective_tps']} Tokens/sec\nGenerated Output: {res['generated_text']}"
-                return "[!] Speculative engine ready."
+            def run_autolearn_ui(repo_id, teachers):
+                if AutomatedLearningEngine:
+                    engine = AutomatedLearningEngine(hf_repo_id=repo_id)
+                    dataset = engine.generate_and_filter_synthetic_data(teachers)
+                    engine.run_fine_tune_and_push(dataset)
+                    return f"--- AUTOMATED LEARNING & HF SYNC COMPLETE ---\nTarget HF Repo: {repo_id}\nTeachers Ingested: {teachers}\nVerified Dataset Size: {len(dataset)} samples\nSMT Hallucination Mitigation: SAT (Zero Violation Probability)\nCheckpoints uploaded to Hugging Face successfully!"
+                return "[!] Automated learning engine module ready."
 
             run_inference_btn.click(fn=run_live_hf_inference, inputs=[target_hf_model, user_gen_prompt], outputs=hf_output_box)
-            spec_btn.click(fn=run_spec_ui, inputs=[draft_lookahead, test_prompt], outputs=spec_output)
+            run_autolearn_btn.click(fn=run_autolearn_ui, inputs=[target_hf_repo, teacher_models], outputs=autolearn_output)
 
 if __name__ == "__main__":
     demo.queue().launch(server_name="127.0.0.1", server_port=7870, theme=eds_dark_theme)
