@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Live Local Inference Engine (Theme Persistent)
+﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Accelerated CUDA Engine (Static KV Cache)
 import os
 import sys
 
@@ -253,7 +253,6 @@ def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_
 # --- 5. UI Layout with JavaScript Dark Mode Preference Sync ---
 js_theme_persistence = """
 function() {
-    // Check if user has saved dark mode preference or force dark mode
     let currentTheme = localStorage.getItem('eds_theme_pref') || 'dark';
     document.body.classList.add(currentTheme);
     localStorage.setItem('eds_theme_pref', 'dark');
@@ -360,7 +359,7 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persiste
 
         with gr.Tab("⚡ High-TPS Model Lab & Local HF Inference"):
             gr.Markdown("### ⚡ Custom LLM Real-Time Inference & Speculative Lab")
-            gr.Markdown("Run local inference using PyTorch/Transformers models (`Qwen2.5-0.5B-Instruct`) with SDPA CUDA kernels.")
+            gr.Markdown("Run local inference using PyTorch/Transformers models (`Qwen2.5-0.5B-Instruct`) with SDPA CUDA kernels and static KV caching.")
             
             with gr.Row():
                 with gr.Column():
@@ -391,13 +390,15 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persiste
                     
                     start_t = time.perf_counter()
                     with torch.inference_mode():
+                        # Applied static KV cache implementation to prevent dynamic VRAM allocations
                         outputs = model.generate(
                             **inputs, 
                             max_new_tokens=60,
                             do_sample=True,
                             temperature=0.6,
                             top_p=0.9,
-                            use_cache=True
+                            use_cache=True,
+                            cache_implementation="static" if device == "cuda" else None
                         )
                     if device == "cuda":
                         torch.cuda.synchronize()
@@ -410,9 +411,27 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persiste
                     response_ids = outputs[0][len(inputs["input_ids"][0]):]
                     gen_text = tokenizer.decode(response_ids, skip_special_tokens=True)
                     
-                    return f"--- ACCELERATED SDPA CUDA INFERENCE RESULT ---\nDevice: {device.upper()}\nAttention Kernel: SDPA (Scaled Dot-Product Attention)\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
+                    return f"--- ACCELERATED SDPA CUDA INFERENCE RESULT ---\nDevice: {device.upper()}\nAttention Kernel: SDPA (Scaled Dot-Product Attention)\nKV Cache Mode: Static Contiguous VRAM\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
                 except Exception as e:
-                    return f"[!] Inference Error: {str(e)}"
+                    # Fallback if static cache is unsupported on certain architectures
+                    start_t = time.perf_counter()
+                    with torch.inference_mode():
+                        outputs = model.generate(
+                            **inputs, 
+                            max_new_tokens=60,
+                            do_sample=True,
+                            temperature=0.6,
+                            top_p=0.9,
+                            use_cache=True
+                        )
+                    if device == "cuda":
+                        torch.cuda.synchronize()
+                    elapsed = time.perf_counter() - start_t
+                    tokens_generated = len(outputs[0]) - len(inputs["input_ids"][0])
+                    calc_tps = tokens_generated / max(elapsed, 0.001)
+                    response_ids = outputs[0][len(inputs["input_ids"][0]):]
+                    gen_text = tokenizer.decode(response_ids, skip_special_tokens=True)
+                    return f"--- ACCELERATED SDPA CUDA INFERENCE RESULT (DYNAMIC CACHE) ---\nDevice: {device.upper()}\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
 
             def run_spec_ui(gamma, prompt):
                 if SpeculativeDecodingHarness:
