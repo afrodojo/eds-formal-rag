@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Optimized CUDA Inference Engine
+﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Live Local Inference Engine
 import os
 import sys
 
@@ -57,7 +57,7 @@ def get_hf_model_and_tokenizer(model_id: str):
     )
     model.eval()
     
-    # Warmup pass to eliminate cold-start GPU allocation latency
+    # Warmup pass
     dummy_input = tokenizer("Warmup", return_tensors="pt").to(device)
     with torch.inference_mode():
         _ = model.generate(**dummy_input, max_new_tokens=2)
@@ -169,7 +169,7 @@ class AdvancedHardwareDigitalTwin:
 
 hw_twin = AdvancedHardwareDigitalTwin()
 
-# --- 3. Telemetry Console Stream ---
+# --- 3. Telemetry Console Output ---
 def run_unified_telemetry_stream(selected_model, custom_weights_path, units_config, time_of_day, input_prompt, classification):
     try:
         model_name = selected_model
@@ -352,7 +352,7 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
 
         with gr.Tab("⚡ High-TPS Model Lab & Local HF Inference"):
             gr.Markdown("### ⚡ Custom LLM Real-Time Inference & Speculative Lab")
-            gr.Markdown("Run local inference using PyTorch/Transformers models (`Qwen2.5-0.5B-Instruct`) and test speculative decoding throughput.")
+            gr.Markdown("Run local inference using PyTorch/Transformers models (`Qwen2.5-0.5B-Instruct`) with active SOC Overwatch System Prompts.")
             
             with gr.Row():
                 with gr.Column():
@@ -373,19 +373,25 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                 if not HF_INFERENCE_AVAILABLE:
                     return "[!] PyTorch or Transformers not available in local Python environment."
                 try:
-                    # 1. Fetch pre-warmed model from VRAM memory cache
                     model, tokenizer = get_hf_model_and_tokenizer(model_id)
                     device = "cuda" if torch.cuda.is_available() else "cpu"
                     
-                    inputs = tokenizer(prompt, return_tensors="pt").to(device)
+                    # Apply System Chat Template so the model acts as the Overwatch SOC Assistant
+                    messages = [
+                        {"role": "system", "content": "You are Overwatch, an elite security and infrastructure AI assistant for the Zero-Gravity SOC Command Center. Respond professionally and concisely to operational commands."},
+                        {"role": "user", "content": prompt}
+                    ]
                     
-                    # 2. Time pure token generation pass without disk/cache loading overhead
+                    formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                    inputs = tokenizer(formatted_prompt, return_tensors="pt").to(device)
+                    
                     start_t = time.perf_counter()
                     with torch.inference_mode():
                         outputs = model.generate(
                             **inputs, 
-                            max_new_tokens=40,
-                            do_sample=False,
+                            max_new_tokens=60,
+                            do_sample=True,
+                            temperature=0.7,
                             use_cache=True
                         )
                     if device == "cuda":
@@ -395,7 +401,10 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                     
                     tokens_generated = len(outputs[0]) - len(inputs["input_ids"][0])
                     calc_tps = tokens_generated / max(elapsed, 0.001)
-                    gen_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                    
+                    # Extract generated response text
+                    response_ids = outputs[0][len(inputs["input_ids"][0]):]
+                    gen_text = tokenizer.decode(response_ids, skip_special_tokens=True)
                     
                     return f"--- LOCAL PYTORCH CUDA INFERENCE RESULT ---\nDevice: {device.upper()}\nTokens Generated: {tokens_generated}\nGeneration Time: {elapsed:.2f}s\nEffective Throughput: {calc_tps:.2f} Tokens/sec\n\nGenerated Response:\n{gen_text}"
                 except Exception as e:
