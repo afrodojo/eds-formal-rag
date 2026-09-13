@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Forced Voice Output Overwatch
+# dashboard/app.py - Zero-Gravity SOC Command Center & Base64 Audio Overwatch
 import os
 import sys
 
@@ -129,7 +129,7 @@ class AdvancedHardwareDigitalTwin:
 
 hw_twin = AdvancedHardwareDigitalTwin()
 
-# --- 3. Telemetry Console Output ---
+# --- 3. Console Log Telemetry ---
 def run_unified_telemetry_stream(selected_model, custom_weights_path, units_config, time_of_day, input_prompt, classification):
     try:
         model_name = selected_model
@@ -166,7 +166,7 @@ def run_unified_telemetry_stream(selected_model, custom_weights_path, units_conf
     except Exception as ex:
         return f"--- EXECUTION ERROR LOGGED ---\nError Details: {str(ex)}"
 
-# --- 4. Speech-to-Text & Wake-Word Overwatch Processing ---
+# --- 4. STT Transcriber & Wake-Word Overwatch Processing ---
 def transcribe_audio_file(audio_path):
     if not audio_path or not SR_AVAILABLE:
         return None
@@ -177,7 +177,7 @@ def transcribe_audio_file(audio_path):
             text = r.recognize_google(audio_data)
             return text
     except Exception as e:
-        print(f"[!] STT Error: {str(e)}")
+        print(f"[!] Speech-to-Text Error: {str(e)}")
         return None
 
 def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_path, units_config, time_of_day):
@@ -201,32 +201,23 @@ def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_
         else:
             response += f"Systems fully operational, Boss. Cerebras CS-4 and high-bandwidth fabric firing at `{telemetry['Effective_TPS']}`. What's di next move for di command center, mi chief?"
 
-    # Synthesize Voice via ElevenLabs
+    # ElevenLabs Base64 Audio Synthesis
     engine = OverwatchVoiceEngine()
     spoken_text = response.replace("`", "").replace("*", "")
-    audio_path = engine.synthesize_speech(spoken_text)
+    base64_audio_uri = engine.synthesize_speech(spoken_text)
 
-    return response, audio_path
+    # Wrap in HTML5 Autoplay Tag
+    if base64_audio_uri:
+        html_audio_player = f'<audio autoplay controls src="{base64_audio_uri}" style="width: 100%; margin-top: 10px;"></audio>'
+    else:
+        html_audio_player = '<p style="color: #ef4444;">[!] Voice synthesis unavailable. Verify ElevenLabs API Key in overwatch_voice.py.</p>'
 
-# --- 5. UI Layout with Automatic Browser Audio Unmute JS ---
+    return response, html_audio_player
+
+# --- 5. UI Layout ---
 eds_dark_theme = gr.themes.Soft(primary_hue="cyan", neutral_hue="slate").set(
     body_background_fill="#090d16", block_background_fill="#0f172a", block_border_color="#1e293b", body_text_color="#cbd5e1"
 )
-
-# Custom JavaScript to force playback on the Gradio audio element
-force_audio_js = """
-() => {
-    setTimeout(() => {
-        let audios = document.querySelectorAll('audio');
-        audios.forEach(a => {
-            if (a.src) {
-                a.muted = false;
-                a.play().catch(e => console.log("Autoplay un-mute triggered:", e));
-            }
-        });
-    }, 400);
-}
-"""
 
 with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
     gr.Markdown("# EMERGING DEFENSE SOLUTIONS (EDS)")
@@ -271,14 +262,14 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                 outputs=console_output
             )
 
-        with gr.Tab("🎙️ Conversational Overwatch (Wake-Word Enabled)"):
-            gr.Markdown("### 🎙️ Live Voice Overwatch (Wake-Word: 'OK Overwatch')")
-            gr.Markdown("Say **'OK Overwatch, give me a status report'** into your mic. The AI transcribes your voice, verifies the wake word, and speaks back immediately using ElevenLabs.")
+        with gr.Tab("??? Conversational Overwatch (Wake-Word Enabled)"):
+            gr.Markdown("### ??? Live Voice Overwatch (Wake-Word: 'OK Overwatch')")
+            gr.Markdown("Say **'OK Overwatch, give me a status report'** into your mic. The AI transcribes your voice, verifies the wake word, and streams voice playback out loud.")
             
             with gr.Row():
                 with gr.Column(scale=1):
-                    mic_input = gr.Audio(sources=["microphone"], type="filepath", label="🎤 Speak to Overwatch")
-                    audio_player = gr.Audio(label="🔊 Overwatch Voice Response Stream", autoplay=True, elem_id="overwatch_audio_player")
+                    mic_input = gr.Audio(sources=["microphone"], type="filepath", label="?? Speak to Overwatch")
+                    audio_html_output = gr.HTML(label="?? Overwatch Voice Stream", value="<p>Voice stream idle.</p>")
 
                 with gr.Column(scale=2):
                     chatbot = gr.Chatbot(label="Overwatch Dialogue Log", height=380)
@@ -299,29 +290,28 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                 if not user_prompt:
                     user_prompt = "OK Overwatch, status update."
                 
-                reply_text, audio_file = overwatch_jamaican_jarvis_chat(
+                reply_text, audio_html = overwatch_jamaican_jarvis_chat(
                     user_prompt, selected_model, custom_weights_path, units_config, time_of_day
                 )
                 
                 history.append({"role": "user", "content": user_prompt})
                 history.append({"role": "assistant", "content": reply_text})
                 
-                return "", history, audio_file
+                return "", history, audio_html
 
-            # Connect submit and stop_recording to run python logic AND execute the forced playback JavaScript
             msg_input.submit(
                 fn=voice_conversation_flow,
                 inputs=[mic_input, msg_input, chatbot, model_selector, custom_weights, hardware_json, time_slider],
-                outputs=[msg_input, chatbot, audio_player]
-            ).then(fn=None, js=force_audio_js)
+                outputs=[msg_input, chatbot, audio_html_output]
+            )
             
             mic_input.stop_recording(
                 fn=voice_conversation_flow,
                 inputs=[mic_input, msg_input, chatbot, model_selector, custom_weights, hardware_json, time_slider],
-                outputs=[msg_input, chatbot, audio_player]
-            ).then(fn=None, js=force_audio_js)
+                outputs=[msg_input, chatbot, audio_html_output]
+            )
             
-            clear_btn.click(lambda: ([], None), None, [chatbot, audio_player], queue=False)
+            clear_btn.click(lambda: ([], "<p>Voice stream cleared.</p>"), None, [chatbot, audio_html_output], queue=False)
 
 if __name__ == "__main__":
-    demo.queue().launch(server_name="127.0.0.1", server_port=7870, theme=eds_dark_theme)
+    demo.queue().launch(server_name="127.0.0.1", server_port=7870, prevent_thread_lock=False, theme=eds_dark_theme)
