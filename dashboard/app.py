@@ -202,7 +202,7 @@ def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_
             response += f"Systems fully operational, Boss. Cerebras CS-4 and high-bandwidth fabric firing at `{telemetry['Effective_TPS']}`. What's di next move for di command center, mi chief?"
 
     # ElevenLabs Base64 Audio Synthesis
-    engine = OverwatchVoiceEngine()
+    engine = OverwatchVoiceEngine(api_key=os.getenv("ELEVENLABS_API_KEY"))
     spoken_text = response.replace("`", "").replace("*", "")
     base64_audio_uri = engine.synthesize_speech(spoken_text)
 
