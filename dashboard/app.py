@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Accelerated CUDA Inference Engine
+﻿# dashboard/app.py - Zero-Gravity SOC Command Center & Live Local Inference Engine (Theme Persistent)
 import os
 import sys
 
@@ -53,18 +53,16 @@ def get_hf_model_and_tokenizer(model_id: str):
         model_id, 
         torch_dtype=dtype, 
         device_map=device,
-        attn_implementation="sdpa",  # Scaled Dot-Product Attention for high bandwidth
+        attn_implementation="sdpa",
         trust_remote_code=True
     )
     model.eval()
     
-    # Warmup CUDA kernels
     dummy_input = tokenizer("Warmup pass", return_tensors="pt").to(device)
     with torch.inference_mode():
         _ = model.generate(**dummy_input, max_new_tokens=2)
 
     LOADED_MODELS[model_id] = (model, tokenizer)
-    print(f"[SUCCESS] Model '{model_id}' loaded with active SDPA acceleration!")
     return model, tokenizer
 
 # --- 1. SMT Logic Solver Engine ---
@@ -252,12 +250,21 @@ def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_
 
     return response, html_audio_player
 
-# --- 5. UI Layout ---
+# --- 5. UI Layout with JavaScript Dark Mode Preference Sync ---
+js_theme_persistence = """
+function() {
+    // Check if user has saved dark mode preference or force dark mode
+    let currentTheme = localStorage.getItem('eds_theme_pref') || 'dark';
+    document.body.classList.add(currentTheme);
+    localStorage.setItem('eds_theme_pref', 'dark');
+}
+"""
+
 eds_dark_theme = gr.themes.Soft(primary_hue="cyan", neutral_hue="slate").set(
     body_background_fill="#090d16", block_background_fill="#0f172a", block_border_color="#1e293b", body_text_color="#cbd5e1"
 )
 
-with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
+with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", js=js_theme_persistence) as demo:
     gr.Markdown("# EMERGING DEFENSE SOLUTIONS (EDS)")
     gr.Markdown("### Zero-Gravity SOC Command Center | Voice-Enabled Overwatch (JARVIS AI)")
 
