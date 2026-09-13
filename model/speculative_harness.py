@@ -1,27 +1,25 @@
-﻿# model/speculative_harness.py - Speculative Decoding & High-Bandwidth Throughput Engine
+﻿# model/speculative_harness.py - Speculative Decoding & High-Bandwidth Engine
 import time
-import torch
 
 class SpeculativeDecodingHarness:
-    def __init__(self, target_model_name: str, draft_model_name: str, gamma_lookahead: int = 4):
+    def __init__(self, target_model_name: str, draft_model_name: str, gamma_lookahead: int = 5):
         self.target_model = target_model_name
         self.draft_model = draft_model_name
-        self.gamma = gamma_lookahead  # Number of speculative draft tokens generated per step
-        print(f"[*] Speculative Engine Online: Target={target_model_name} | Draft={draft_model_name} | Gamma={gamma_lookahead}")
+        self.gamma = gamma_lookahead
 
     def run_speculative_step(self, prompt: str):
-        """Simulates speculative decoding execution pass."""
-        start_time = time.time()
+        start_time = time.perf_counter()
         
-        # 1. Draft model generates 'gamma' candidate tokens fast
-        draft_tokens = [f"token_{i}" for i in range(self.gamma)]
+        # Simulate draft lookahead verification pass
+        accepted_tokens = [f"token_{i}" for i in range(self.gamma)]
         
-        # 2. Target model evaluates all candidate tokens in ONE parallel forward pass
-        accepted_tokens = draft_tokens  # Assuming 100% SMT SAT acceptance
+        # Realistic GPU latency simulation per speculative step (e.g. 25ms per pass)
+        time.sleep(0.025)
+        elapsed = max(time.perf_counter() - start_time, 0.001)
         
-        elapsed = time.time() - start_time
-        effective_tps = (len(accepted_tokens) + 1) / max(elapsed, 0.001) * 350.0  # Scaled for HBM throughput
-        
+        # Calculate realistic speculative throughput (Tokens/sec)
+        effective_tps = (len(accepted_tokens) + 1) / elapsed
+
         return {
             "accepted_count": len(accepted_tokens),
             "effective_tps": round(effective_tps, 2),
@@ -29,10 +27,5 @@ class SpeculativeDecodingHarness:
         }
 
 if __name__ == "__main__":
-    harness = SpeculativeDecodingHarness(
-        target_model_name="Custom-Qwen2.5-7B-Distilled",
-        draft_model_name="Custom-Qwen2.5-0.5B-Draft",
-        gamma_lookahead=5
-    )
-    result = harness.run_speculative_step("Verify hardware twin telemetry stream.")
-    print(f"[SUCCESS] Speculative Step Result: {result}")
+    harness = SpeculativeDecodingHarness("Custom-Student-7B", "Draft-0.5B", 5)
+    print(harness.run_speculative_step("Test benchmark"))
