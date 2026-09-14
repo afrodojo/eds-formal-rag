@@ -1,0 +1,19 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/\/c3coaching79:\', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/\/c3coaching79:\']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'c3coaching79'
+      - '--image=gcr.io/\/c3coaching79:\'
+      - '--region=us-east4'
+      - '--allow-unauthenticated'
+
+images:
+  - 'gcr.io/\/c3coaching79:\'
