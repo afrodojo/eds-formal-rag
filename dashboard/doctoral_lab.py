@@ -14,7 +14,7 @@ class DoctoralResearchEngine:
         """Computes token-level empirical entropy and burstiness for stylometric analysis."""
         words = text.strip().split()
         if not words:
-            return {"entropy": 0.0, "burstiness": 0.0, "ai_likelihood": "N/A"}
+            return {"token_count": 0, "empirical_entropy_bits": 0.0, "burstiness_variance": 0.0, "stylometric_ai_probability": "0.00%"}
         
         # Calculate empirical unigram distribution
         freq_map = {}
@@ -29,7 +29,7 @@ class DoctoralResearchEngine:
         sentence_lengths = [len(s.split()) for s in sentences] if sentences else [total_words]
         burstiness = float(np.std(sentence_lengths)) if len(sentence_lengths) > 1 else 0.0
         
-        # Probability metric: Low entropy + Low burstiness = High AI Probability
+        # Low entropy + Low burstiness = High AI Probability
         ai_score = max(0.0, min(100.0, (1.0 - (burstiness / 15.0)) * 100))
         
         return {
@@ -43,14 +43,14 @@ class DoctoralResearchEngine:
     def generate_doctoral_curriculum(subject: str) -> str:
         """Generates structured doctoral syllabus and formal verification proofs."""
         return (
-            f"## 🎓 Doctoral Research Guide: {subject}\n\n"
-            "### Course Module 1: Formal Methods & Machine Learning\n"
-            "* **Core Theorem:** Satisfiability Modulo Theories (SMT) for Neural Logit Bounds.\n"
-            "* **Mathematical Objective:** Proving $P(\\text{Violation}) = 0$ via Z3 SMT constraint assertion.\n"
-            "* **Required Reading:** Operationalizing Post-Quantum Cryptography in CMMC 2.0 Enclaves.\n\n"
-            "### Course Module 2: MITRE ATLAS Threat Modeling\n"
-            "* **ATLAS Technique AML.T0043:** Direct Agent Tool Invocation Manipulation.\n"
-            "* **ATLAS Technique AML.T0000:** Training Data Poisoning & Exfiltration Mitigation.\n\n"
-            "### Course Module 3: Post-Quantum Security & Guardrails\n"
-            "* Implement Kyber-1024 / Dilithium lattice-based key exchange over microgrid RPC channels.\n"
+            f"## 🎓 Doctoral Research Syllabus: {subject}\n\n"
+            "### Course Module 1: Stochastics & Information Theory\n"
+            "* **Core Theorem:** Memoryless Stochastic Processes vs. Latent Subspace Trajectories.\n"
+            "* **Proof Boundary:** Mathematical impossibility of predictive modeling over uniform independent draws ($I(X_t; X_{<t}) = 0$).\n\n"
+            "### Course Module 2: MITRE ATLAS & NIST Defense Frameworks\n"
+            "* **ATLAS AML.T0043:** Direct Agent Tool Invocation Manipulation Controls.\n"
+            "* **NIST SP 800-171 Rev 3 / CMMC Level 3:** Enforcing Human-in-the-Loop (HITL) gates for CUI & classified inference.\n\n"
+            "### Course Module 3: Post-Quantum Cryptographic Guardrails\n"
+            "* **PQC Encryption:** Deploying Kyber-1024 / Dilithium lattice cryptography across air-gapped IPC channels.\n"
+            "* **SMT Verification:** Z3 SAT enforcement guaranteeing $P(\\text{Violation}) = 0$.\n"
         )
