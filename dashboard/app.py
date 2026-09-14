@@ -55,7 +55,7 @@ def get_hf_model_and_tokenizer(model_id: str):
     
     model = AutoModelForCausalLM.from_pretrained(
         model_id, 
-        torch_dtype=dtype, 
+        dtype=dtype, 
         device_map=device,
         attn_implementation="sdpa",
         trust_remote_code=True
@@ -466,3 +466,5 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
 if __name__ == "__main__":
     server_port = int(os.environ.get("PORT", 8080))
     demo.queue().launch(server_name="0.0.0.0", server_port=server_port, theme=eds_dark_theme)
+
+
