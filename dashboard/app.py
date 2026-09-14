@@ -1,4 +1,4 @@
-# dashboard/app.py - Cloud Run Production Ready (Updated with Tab 6)
+# dashboard/app.py - Cloud Run Production Ready (Complete Unified Architecture)
 import os
 import sys
 
@@ -39,6 +39,11 @@ try:
     from dashboard.doctoral_lab import DoctoralResearchEngine
 except ModuleNotFoundError:
     from doctoral_lab import DoctoralResearchEngine
+
+try:
+    from dashboard.rag_verification_lab import rag_verifier
+except ModuleNotFoundError:
+    from rag_verification_lab import rag_verifier
 
 try:
     from model.distill_engine import SyntheticDistillationPipeline
@@ -591,6 +596,38 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                 fn=DoctoralResearchEngine.generate_doctoral_curriculum,
                 inputs=research_topic_input,
                 outputs=syllabus_output
+            )
+
+        # TAB 7: Interactive SMT Classified RAG Verification
+        with gr.Tab("🛡️ Interactive SMT RAG Verification"):
+            gr.Markdown("### 🛡️ Interactive SMT-Constrained Classified RAG Verification")
+            gr.Markdown("Test how Z3 formal logic solvers bound LLM outputs to eliminate hallucinations when handling CUI and Classified documents.")
+
+            with gr.Row():
+                with gr.Column(scale=1):
+                    rag_prompt_input = gr.Textbox(
+                        label="RAG Document Query / Candidate Token Stream",
+                        value="Retrieve classified threat telemetry regarding CUI_SPEC_001",
+                        lines=3
+                    )
+                    user_clearance_drop = gr.Dropdown(
+                        choices=["UNCLASSIFIED", "CUI", "SECRET", "TOP SECRET"],
+                        value="SECRET",
+                        label="Active Operator Clearance Level"
+                    )
+                    enclave_toggle = gr.Checkbox(
+                        value=True, 
+                        label="AMD SEV-SNP Secure Hardware Enclave Active"
+                    )
+                    verify_rag_btn = gr.Button("RUN FORMAL LOGICAL VERIFICATION", variant="primary")
+
+                with gr.Column(scale=1):
+                    rag_verification_output = gr.JSON(label="Z3 SMT Verification & Logits Bounding Output")
+
+            verify_rag_btn.click(
+                fn=rag_verifier.evaluate_rag_query,
+                inputs=[rag_prompt_input, user_clearance_drop, enclave_toggle],
+                outputs=rag_verification_output
             )
 
 if __name__ == "__main__":
