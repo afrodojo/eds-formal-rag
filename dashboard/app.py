@@ -1,4 +1,4 @@
-# dashboard/app.py - Cloud Run Production Ready
+# dashboard/app.py - Cloud Run Production Ready (Updated with Tab 6)
 import os
 import sys
 
@@ -34,6 +34,11 @@ try:
     from dashboard.teaching_agent import concept_teacher
 except ModuleNotFoundError:
     from teaching_agent import concept_teacher
+
+try:
+    from dashboard.doctoral_lab import DoctoralResearchEngine
+except ModuleNotFoundError:
+    from doctoral_lab import DoctoralResearchEngine
 
 try:
     from model.distill_engine import SyntheticDistillationPipeline
@@ -552,6 +557,40 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                 fn=handle_concept_explanation,
                 inputs=[concept_selector, custom_concept_input],
                 outputs=[explanation_markdown, audio_explanation_output]
+            )
+
+        # TAB 6: Doctoral Research & PQC Security Lab
+        with gr.Tab("🔬 Doctoral Research & PQC Security"):
+            gr.Markdown("### 🔬 Advanced Research & Post-Quantum Security Lab")
+            gr.Markdown("Analyze statistical entropy, test AI content stylometrics, and inspect MITRE ATLAS / NIST SP 800-171 Rev 3 compliance.")
+
+            with gr.Row():
+                with gr.Column(scale=1):
+                    gr.Markdown("#### Stylometric & Entropy Analyzer")
+                    sample_text_input = gr.Textbox(
+                        label="Input Text / Model Log", 
+                        lines=5, 
+                        value="The system evaluated the security policy across the enclave. Output logits were bounded using formal logic."
+                    )
+                    analyze_entropy_btn = gr.Button("RUN STYLOMETRIC ENTROPY TEST", variant="primary")
+                    entropy_output = gr.JSON(label="Empirical Entropy & AI Probability Metrics")
+
+                with gr.Column(scale=1):
+                    gr.Markdown("#### Doctoral Curriculum & Syllabus")
+                    research_topic_input = gr.Textbox(label="Research Area", value="Formal Verification of Defense LLMs")
+                    gen_syllabus_btn = gr.Button("GENERATE DOCTORAL SYLLABUS", variant="secondary")
+                    syllabus_output = gr.Markdown()
+
+            analyze_entropy_btn.click(
+                fn=DoctoralResearchEngine.calculate_text_entropy,
+                inputs=sample_text_input,
+                outputs=entropy_output
+            )
+
+            gen_syllabus_btn.click(
+                fn=DoctoralResearchEngine.generate_doctoral_curriculum,
+                inputs=research_topic_input,
+                outputs=syllabus_output
             )
 
 if __name__ == "__main__":
