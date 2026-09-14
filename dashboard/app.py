@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Cloud Run Production Ready
+# dashboard/app.py - Cloud Run Production Ready
 import os
 import sys
 
@@ -9,6 +9,7 @@ import math
 import random
 import time
 import json
+import pandas as pd
 import z3
 
 try:
@@ -30,6 +31,11 @@ except ModuleNotFoundError:
     from overwatch_voice import OverwatchVoiceEngine
 
 try:
+    from dashboard.teaching_agent import concept_teacher
+except ModuleNotFoundError:
+    from teaching_agent import concept_teacher
+
+try:
     from model.distill_engine import SyntheticDistillationPipeline
     from model.speculative_harness import SpeculativeDecodingHarness
     from model.auto_train_sync import AutomatedLearningEngine
@@ -46,25 +52,46 @@ LOADED_MODELS = {}
 def get_hf_model_and_tokenizer(model_id: str):
     if model_id in LOADED_MODELS:
         return LOADED_MODELS[model_id]
-    
+
     print(f"[*] Loading model '{model_id}' into VRAM with SDPA CUDA acceleration...")
-    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-    
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    local_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", os.path.basename(model_id)))
+    target_path = local_path if os.path.exists(local_path) else model_id
+
+    hf_token = os.environ.get("HF_TOKEN")
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        target_path, 
+        trust_remote_code=True,
+        token=hf_token
+    )
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
-    
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id, 
-        dtype=dtype, 
-        device_map=device,
-        attn_implementation="sdpa",
-        trust_remote_code=True
-    )
+
+    try:
+        model = AutoModelForCausalLM.from_pretrained(
+            target_path,
+            torch_dtype=dtype,
+            device_map=device if device == "cuda" else None,
+            attn_implementation="sdpa",
+            trust_remote_code=True,
+            token=hf_token
+        )
+    except Exception as e:
+        print(f"[!] SDPA loading failed ({e}). Falling back to standard attention implementation...")
+        model = AutoModelForCausalLM.from_pretrained(
+            target_path,
+            torch_dtype=dtype,
+            device_map=device if device == "cuda" else None,
+            trust_remote_code=True,
+            token=hf_token
+        )
+
     model.eval()
-    
-    dummy_input = tokenizer("Warmup pass", return_tensors="pt").to(device)
-    with torch.inference_mode():
-        _ = model.generate(**dummy_input, max_new_tokens=2)
 
     LOADED_MODELS[model_id] = (model, tokenizer)
     return model, tokenizer
@@ -172,7 +199,7 @@ class AdvancedHardwareDigitalTwin:
 
 hw_twin = AdvancedHardwareDigitalTwin()
 
-# --- 3. Telemetry Console Output ---
+# --- 3. Telemetry Console & CSV Export Handlers ---
 def run_unified_telemetry_stream(selected_model, custom_weights_path, units_config, time_of_day, input_prompt, classification):
     try:
         model_name = selected_model
@@ -208,6 +235,25 @@ def run_unified_telemetry_stream(selected_model, custom_weights_path, units_conf
         return log_output
     except Exception as ex:
         return f"--- EXECUTION ERROR LOGGED ---\nError Details: {str(ex)}"
+
+def generate_telemetry_csv(selected_model, custom_weights_path, units_config, time_of_day, prompt_input, classification):
+    telemetry = hw_twin.simulate_telemetry(selected_model, custom_weights_path, units_config, time_of_day, prompt_input, classification)
+    
+    log_record = {
+        "Timestamp": [pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")],
+        "Model": [selected_model],
+        "Prompt": [prompt_input],
+        "Classification": [classification],
+        "IT Compute Draw": [telemetry["IT_Compute_Draw"]],
+        "Effective TPS": [telemetry["Effective_TPS"]],
+        "SMT Status": [telemetry["SMT_Status"]]
+    }
+    
+    df = pd.DataFrame(log_record)
+    file_path = "/tmp/soc_telemetry_report.csv"
+    df.to_csv(file_path, index=False)
+    
+    return file_path, df
 
 # --- 4. Speech-to-Text & Wake-Word Overwatch Processing ---
 def transcribe_audio_file(audio_path):
@@ -255,14 +301,6 @@ def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_
     return response, html_audio_player
 
 # --- 5. UI Layout ---
-js_theme_persistence = """
-function() {
-    let currentTheme = localStorage.getItem('eds_theme_pref') || 'dark';
-    document.body.classList.add(currentTheme);
-    localStorage.setItem('eds_theme_pref', 'dark');
-}
-"""
-
 eds_dark_theme = gr.themes.Soft(primary_hue="cyan", neutral_hue="slate").set(
     body_background_fill="#090d16", block_background_fill="#0f172a", block_border_color="#1e293b", body_text_color="#cbd5e1"
 )
@@ -303,12 +341,22 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
 
                 with gr.Column(scale=2):
                     gr.Markdown("#### Real-Time Verification & Hardware Twin Output")
-                    console_output = gr.Textbox(label="Unified SOC Command Center Console Log", lines=36, interactive=False)
+                    console_output = gr.Textbox(label="Unified SOC Command Center Console Log", lines=24, interactive=False)
+                    
+                    gr.Markdown("#### Telemetry Data Export")
+                    export_df = gr.Dataframe(label="Current Session Log", headers=["Timestamp", "Model", "Prompt", "Classification", "IT Compute Draw", "Effective TPS", "SMT Status"])
+                    export_btn = gr.DownloadButton("📥 EXPORT TELEMETRY TO CSV", variant="secondary")
 
             exec_btn.click(
                 fn=run_unified_telemetry_stream,
                 inputs=[model_selector, custom_weights, hardware_json, time_slider, prompt_input, classification_drop],
                 outputs=console_output
+            )
+
+            export_btn.click(
+                fn=generate_telemetry_csv,
+                inputs=[model_selector, custom_weights, hardware_json, time_slider, prompt_input, classification_drop],
+                outputs=[export_btn, export_df]
             )
 
         # TAB 2: Conversational Overwatch Voice Assistant
@@ -463,8 +511,49 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
             gen_phd_btn.click(fn=trigger_phd_doc, outputs=phd_output_box)
             gen_grant_btn.click(fn=trigger_grant_doc, outputs=grant_output_box)
 
+        # TAB 5: Agentic Concept Educator
+        with gr.Tab("🎓 Agentic Concept Educator"):
+            gr.Markdown("### 🎓 Interactive AI Concept Teacher & Voice Explainer")
+            gr.Markdown("Select or type any technical concept within the Overwatch SOC architecture to receive a clear breakdown using plain-language analogies and spoken audio.")
+
+            with gr.Row():
+                with gr.Column(scale=1):
+                    concept_selector = gr.Dropdown(
+                        choices=[
+                            "Z3 SMT Logic Solver & Hallucination Mitigation",
+                            "AMD SEV-SNP Guest TEE (Hardware Security)",
+                            "Speculative Decoding & High-TPS Generation",
+                            "Grid Isolation Index & Thermodynamic Microgrid",
+                            "Custom Concept..."
+                        ],
+                        value="Z3 SMT Logic Solver & Hallucination Mitigation",
+                        label="Select SOC Architecture Concept"
+                    )
+                    
+                    custom_concept_input = gr.Textbox(
+                        label="Or Type Custom Concept / Topic",
+                        placeholder="e.g., RoCEv2 Network Fabrics, LoRA Distillation...",
+                        visible=True
+                    )
+                    
+                    explain_btn = gr.Button("TEACH & SPEAK CONCEPT", variant="primary")
+                    audio_explanation_output = gr.HTML(label="🔊 Overwatch Audio Stream", value="<p>Voice stream idle.</p>")
+
+                with gr.Column(scale=2):
+                    explanation_markdown = gr.Markdown(
+                        value="*Select a concept and click 'Teach & Speak Concept' to begin...*"
+                    )
+
+            def handle_concept_explanation(selected_dropdown, custom_input):
+                target_concept = custom_input.strip() if custom_input and len(custom_input.strip()) > 0 else selected_dropdown
+                return concept_teacher.explain_concept(target_concept)
+
+            explain_btn.click(
+                fn=handle_concept_explanation,
+                inputs=[concept_selector, custom_concept_input],
+                outputs=[explanation_markdown, audio_explanation_output]
+            )
+
 if __name__ == "__main__":
     server_port = int(os.environ.get("PORT", 8080))
     demo.queue().launch(server_name="0.0.0.0", server_port=server_port, theme=eds_dark_theme)
-
-
