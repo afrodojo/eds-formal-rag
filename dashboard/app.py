@@ -1,4 +1,4 @@
-﻿# dashboard/app.py - Zero-Gravity SOC Command Center (Gradio 6.0 Cleaned)
+﻿# dashboard/app.py - Cloud Run Production Ready
 import os
 import sys
 
@@ -409,7 +409,6 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
                         torch.cuda.synchronize()
                     
                     elapsed = time.perf_counter() - start_t
-                    
                     tokens_generated = len(outputs[0]) - len(inputs["input_ids"][0])
                     calc_tps = tokens_generated / max(elapsed, 0.001)
                     
@@ -465,4 +464,5 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
             gen_grant_btn.click(fn=trigger_grant_doc, outputs=grant_output_box)
 
 if __name__ == "__main__":
-    demo.queue().launch(server_name="127.0.0.1", server_port=7870, theme=eds_dark_theme, js=js_theme_persistence)
+    server_port = int(os.environ.get("PORT", 8080))
+    demo.queue().launch(server_name="0.0.0.0", server_port=server_port, theme=eds_dark_theme)
