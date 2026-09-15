@@ -335,17 +335,17 @@ def overwatch_jamaican_jarvis_chat(user_message, selected_model, custom_weights_
         response = "Good day, Boss. Overwatch online and keeping everything irie. "
         
         if "TRAIN" in msg_upper or "DISTILL" in msg_upper or "TPS" in msg_upper:
-            response += f"Distillation engine active for `{selected_model}`. Speculative decoding harness running at peak throughput with Cerebras CS-4 acceleration, mi general!"
+            response += f"Distillation engine active for {selected_model}. Speculative decoding harness running at peak throughput with Cerebras CS-4 acceleration, mi general!"
         elif "SECURITY" in msg_upper or "ENHANCE" in msg_upper or "TEE" in msg_upper:
-            response += f"Right away, Big Man. Formal verification graph active, `L_hat = L_i + log Phi(v_i)`. No unauthorized token can sneak past di Z3 solver, mi general."
+            response += f"Right away, Big Man. Formal verification graph active, L_hat = L_i + log Phi(v_i). No unauthorized token can sneak past di Z3 solver, mi general."
         elif "MICROGRID" in msg_upper or "POWER" in msg_upper or "SOLAR" in msg_upper:
-            response += f"Everything bless with di power grid, Boss. Grid Isolation Index at `{telemetry['Grid_Isolation_Index']}`, solar array pushing `{telemetry['Solar_Production']}`."
+            response += f"Everything bless with di power grid, Boss. Grid Isolation Index at {telemetry['Grid_Isolation_Index']}, solar array pushing {telemetry['Solar_Production']}."
         else:
-            response += f"Systems fully operational, Boss. Cerebras CS-4 and high-bandwidth fabric firing at `{telemetry['Effective_TPS']}`. What's di next move for di command center, mi chief?"
+            response += f"Systems fully operational, Boss. Cerebras CS-4 and high-bandwidth fabric firing at {telemetry['Effective_TPS']}. What's di next move for di command center, mi chief?"
 
     if OverwatchVoiceEngine:
         engine = OverwatchVoiceEngine()
-        spoken_text = response.replace("`", "").replace("*", "")
+        spoken_text = response.replace("", "").replace("*", "")
         base64_audio_uri = engine.synthesize_speech(spoken_text)
     else:
         base64_audio_uri = None
@@ -832,11 +832,10 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
 if __name__ == "__main__":
     server_port = int(os.environ.get("PORT", 8080))
     
-    # Mounts Gradio directly at root URL without proxy rejection
+    # Clean Gradio launch configuration for Google Cloud Run proxy ingress
     demo.queue().launch(
         server_name="0.0.0.0",
         server_port=server_port,
-        root_path="",
-        allowed_paths=["/"],
+        share=False,
         show_error=True
     )
