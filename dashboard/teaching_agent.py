@@ -1,9 +1,6 @@
-﻿import os
+import os
 
 class AgenticConceptEducator:
-    """
-    Interactive plain-language AI concept teacher for defense SOC architectures.
-    """
     def __init__(self):
         self.concepts = {
             "Z3 SMT Logic Solver & Hallucination Mitigation": (
@@ -32,10 +29,8 @@ class AgenticConceptEducator:
             f"The concept '{concept_name}' involves rigorous formal logic verification, "
             f"FIPS cryptographic enforcement, and high-throughput model distillation."
         )
-
         formatted_md = f"### 🎓 Concept Breakdown: {concept_name}\n\n{explanation}"
         audio_html = "<p style='color: #38bdf8;'>🔊 Voice synthesis active for concept lesson.</p>"
-        
         return formatted_md, audio_html
 
 concept_teacher = AgenticConceptEducator()
