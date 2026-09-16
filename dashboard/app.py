@@ -1,4 +1,4 @@
-# dashboard/app.py - Production Ready (FastAPI + Gradio)
+# dashboard/app.py - Native Gradio Cloud Run Proxy Mount
 import os
 import sys
 
@@ -12,7 +12,6 @@ if PARENT_DIR not in sys.path:
 
 import gradio as gr
 import math
-import random
 import time
 import json
 import pandas as pd
@@ -20,7 +19,6 @@ import z3
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 
 try:
     import torch
@@ -546,7 +544,7 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", theme=eds_dark_theme
 
             generate_doc_btn.click(fn=lambda t, ti, a, f: doc_generator.generate_document(t, ti, a, f) if doc_generator else {"error": "Offline"}, inputs=[doc_type_drop, doc_title_input, doc_author_input, doc_findings_input], outputs=doc_generation_output)
 
-# --- FastAPI Container Mount ---
+# --- Direct FastAPI Mount at Root Path ---
 app = FastAPI()
 
 app.add_middleware(
@@ -557,11 +555,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return RedirectResponse(url="/ui")
+# Enable Gradio queueing
+demo.queue()
 
-app = gr.mount_gradio_app(app, demo, path="/ui")
+# Mount Gradio directly on root path /
+app = gr.mount_gradio_app(app, demo, path="/")
 
 if __name__ == "__main__":
     server_port = int(os.environ.get("PORT", 8080))
