@@ -1,4 +1,4 @@
-# dashboard/app.py - Cloud Run & RHEL FIPS Production Ready (FastAPI Mounted Gradio)
+# dashboard/app.py - Cloud Run Production Ready (FastAPI + Proxy Ingress Fix)
 import os
 import sys
 
@@ -19,6 +19,8 @@ import pandas as pd
 import z3
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 try:
     import torch
@@ -544,12 +546,23 @@ with gr.Blocks(title="EDS Zero-Gravity SOC Command Center", theme=eds_dark_theme
 
             generate_doc_btn.click(fn=lambda t, ti, a, f: doc_generator.generate_document(t, ti, a, f) if doc_generator else {"error": "Offline"}, inputs=[doc_type_drop, doc_title_input, doc_author_input, doc_findings_input], outputs=doc_generation_output)
 
-# --- FastAPI Container Mount ---
+# --- FastAPI Container Mount with Direct Fallback ---
 app = FastAPI()
 
-# Mount Gradio directly on FastAPI root
-app = gr.mount_gradio_app(app, demo, path="/")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Queue demo
+demo.queue()
+
+# Mount Gradio app onto FastAPI
+app = gr.mount_gradio_app(app, demo, path="")
 
 if __name__ == "__main__":
     server_port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=server_port)
+    uvicorn.run(app, host="0.0.0.0", port=server_port, proxy_headers=True, forwarded_allow_ips="*")
