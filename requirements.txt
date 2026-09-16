@@ -6,3 +6,4 @@ pandas
 speechrecognition
 fastapi
 uvicorn
+itsdangerous
