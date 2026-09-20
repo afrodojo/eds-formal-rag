@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Secrets and Credentials
+*.json
+client_secret*.json
+*.pem
+*.key
+
+# Local Test Reports and Artifacts
+test_results/
+eds_research_vault/
+*.pdf
