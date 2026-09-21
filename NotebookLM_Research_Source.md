@@ -8,7 +8,7 @@
 ---
 
 ## SYSTEM ARCHITECTURE & PROVENANCE SUMMARY
-This repository contains the official high-assurance research testbed for Principal Investigator Asaad Morman's doctoral research at Bowie State University. 
+This repository contains the official high-assurance research testbed for Principal Investigator Asaad Morman's doctoral research at Bowie State University.
 
 ### Core Research Invariants:
 1. **SMT Monad Logic Gate:** Evaluates first-order predicate logic clauses via Z3, suppressing UNSAT states to 0.0 probability.
