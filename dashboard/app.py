@@ -1,19 +1,79 @@
 import os
 import json
 import time
+import threading
+import subprocess
+import tempfile
+import random
+from datetime import datetime, timedelta
+import gradio as gr
 
-# --- HUGGING FACE DATASET & LEARNING RAG PUSH ENGINE ---
+# --- HUGGING FACE LLM & RAG CHUNKED MODEL PUSH ENGINE ---
 HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
-HF_DATASET_REPO = os.getenv("HF_DATASET_REPO", "afrodojo/aegis-monad-rag-logs")
+HF_MODEL_REPO = os.getenv("HF_MODEL_REPO", "dassensei/sat-constrained-qwen-poc")
+HF_DATASET_REPO = os.getenv("HF_DATASET_REPO", "dassensei/sat-constrained-qwen-poc-bucket")
+RESEARCH_WEBSITE_URL = os.getenv("AEGIS_PORTAL_URL", "https://das.eds-360.com/api/v1/telemetry_sync")
+RESEARCH_REPO_URL = "https://github.com/afrodojo/sensei-phd"
+API_AUTH_TOKEN = os.getenv("AEGIS_PORTAL_KEY", "AEGIS_MONAD_PORTAL_AUTH_KEY_2026")
+
+def push_llm_model_to_hf(model_name_or_path, target_repo=None, max_retries=5):
+    """Pushes local Qwen, Llama, or fine-tuned model checkpoints to HF Hub via chunked file streaming."""
+    target_repo = target_repo or HF_MODEL_REPO
+    def _async_chunked_push():
+        if not HF_TOKEN:
+            print("[!] HF_TOKEN missing - set $env:HF_TOKEN in PowerShell before running.")
+            return
+        from huggingface_hub import HfApi
+        api = HfApi(token=HF_TOKEN)
+        
+        # Ensure Repo Exists
+        try:
+            api.create_repo(repo_id=target_repo, repo_type="model", exist_ok=True)
+            print(f"[SUCCESS] Verified model repository: https://huggingface.co/{target_repo}")
+        except Exception as e:
+            print(f"[!] Repo verification warning: {str(e)}")
+
+        # Chunked File-by-File Resumable Upload Engine
+        if os.path.exists(model_name_or_path):
+            for root, _, files in os.walk(model_name_or_path):
+                for file_name in files:
+                    local_filepath = os.path.join(root, file_name)
+                    relative_path = os.path.relpath(local_filepath, model_name_or_path).replace("\\", "/")
+                    
+                    uploaded = False
+                    for attempt in range(1, max_retries + 1):
+                        try:
+                            print(f"[+] Uploading artifact '{relative_path}' to {target_repo} (Attempt {attempt}/{max_retries})...")
+                            api.upload_file(
+                                path_or_fileobj=local_filepath,
+                                path_in_repo=relative_path,
+                                repo_id=target_repo,
+                                repo_type="model"
+                            )
+                            uploaded = True
+                            print(f"[SUCCESS] Uploaded '{relative_path}' successfully!")
+                            break
+                        except Exception as e:
+                            print(f"[!] Upload retry for '{relative_path}' (Attempt {attempt}): {str(e)}")
+                            time.sleep(3 * attempt)
+                    
+                    if not uploaded:
+                        print(f"[!] Failed to upload artifact '{relative_path}' after {max_retries} retries.")
+            print(f"[COMPLETE] Model upload process finished for https://huggingface.co/{target_repo}")
+        else:
+            print(f"[!] Local path '{model_name_or_path}' not found.")
+
+    threading.Thread(target=_async_chunked_push, daemon=True).start()
 
 def push_to_huggingface_rag(event_type, payload_dict):
-    import threading
+    """Pushes live telemetry and RAG embedding payloads to HF Dataset repo."""
     def _hf_async_upload():
         try:
             from huggingface_hub import HfApi
             if not HF_TOKEN:
                 return
             api = HfApi(token=HF_TOKEN)
+            api.create_repo(repo_id=HF_DATASET_REPO, repo_type="dataset", exist_ok=True)
             entry = {
                 "timestamp": time.time(),
                 "event_type": event_type,
@@ -31,34 +91,27 @@ def push_to_huggingface_rag(event_type, payload_dict):
             pass
     threading.Thread(target=_hf_async_upload, daemon=True).start()
 
-
-# --- DAS.EDS-360.COM WEBSITE TELEMETRY SYNC ENGINE ---
-RESEARCH_WEBSITE_URL = os.getenv("AEGIS_PORTAL_URL", "https://das.eds-360.com/api/v1/telemetry_sync")
-RESEARCH_WEBSITE_REPO = "https://github.com/afrodojo/sensei-phd"
-API_AUTH_TOKEN = os.getenv("AEGIS_PORTAL_KEY", "AEGIS_MONAD_PORTAL_AUTH_KEY_2026")
-
-def push_to_research_portal(payload_type, payload_dict):
+def push_to_sensei_portal(payload_type, payload_dict):
+    """Syncs live telemetry with sensei-phd research portal at das.eds-360.com."""
     import urllib.request
-    import threading
-    def _async_push():
+    def _async_portal_push():
         try:
-            data = json.dumps({"timestamp": time.time(), "type": payload_type, "data": payload_dict}).encode("utf-8")
+            data = json.dumps({
+                "timestamp": time.time(),
+                "portal_repo": RESEARCH_REPO_URL,
+                "type": payload_type,
+                "data": payload_dict
+            }).encode("utf-8")
             req = urllib.request.Request(
                 RESEARCH_WEBSITE_URL,
                 data=data,
                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_AUTH_TOKEN}"}
             )
-            with urllib.request.urlopen(req, timeout=3) as resp:
+            with urllib.request.urlopen(req, timeout=3):
                 pass
         except Exception:
             pass
-    threading.Thread(target=_async_push, daemon=True).start()
-
-import gradio as gr
-import random
-import subprocess
-import tempfile
-from datetime import datetime, timedelta
+    threading.Thread(target=_async_portal_push, daemon=True).start()
 
 HW_KEY = "HW_KEY_0x889_BSU_DAS_2026_EDR"
 REGISTERED_USER_HARDWARE = {
@@ -115,7 +168,10 @@ def execute_siem_search(search_query):
     query_lower = search_query.lower()
     matched = [l for l in logs if any(k in str(l).lower() for k in query_lower.split())]
     res_json = json.dumps({"query": search_query, "matched_events": len(matched), "results": matched}, indent=2)
-    push_to_research_portal("siem_query", {"query": search_query, "matched_events": len(matched)})
+    
+    push_to_sensei_portal("siem_query", {"query": search_query, "matched_events": len(matched)})
+    push_to_huggingface_rag("siem_query", {"query": search_query, "matched_events": len(matched)})
+    
     return res_json
 
 def execute_custom_code(language, code_snippet):
