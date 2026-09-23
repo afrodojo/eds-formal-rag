@@ -108,7 +108,7 @@ def execute_custom_code(language, code_snippet):
 
 theme = gr.themes.Soft(primary_hue="blue", neutral_hue="slate")
 
-with gr.Blocks(title="Zero-Gravity SOC & SIEM Command Center", theme=theme) as demo:
+with gr.Blocks(title="Zero-Gravity SOC, XDR & MDR Command Center") as demo:
     gr.Markdown(
         f'''
         # ??? Zero-Gravity SOC Command Center & Academic Testbed
@@ -231,4 +231,4 @@ with gr.Blocks(title="Zero-Gravity SOC & SIEM Command Center", theme=theme) as d
             exec_b.click(execute_custom_code, inputs=[lang_sel, code_in], outputs=[console_out])
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860, show_error=True)
+    demo.launch(server_name="0.0.0.0", server_port=7860, theme=theme, show_error=True)

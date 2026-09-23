@@ -1,0 +1,7 @@
+Category,SubCategory,Document_Name,File_Path,Status,IP_Relevance,Date_Updated
+Research,Core Code,48-Hour Burn-In Harness,01_Research_and_Code/eds-formal-rag/run_48hr_burnin.py,Active,High (Implementation),2026-09-21
+Research,SMT Monad,Thread-Isolated Logit Operator,01_Research_and_Code/proofs_and_smt/monad_logits_op.py,Active,High (Core Novelty),2026-09-21
+IP & Patent,Provisional,Monad SMT Logit Transformation Patent,02_IP_Patents_Trademarks/patent_drafts/Provisional_Monad_SMT_Logit.md,Drafting,Critical (Patent Claim 1),2026-09-21
+IP & Trademark,Trademarks,AEGIS-MONAD Trademark Search,02_IP_Patents_Trademarks/trademark_filings/AEGIS_MONAD_Class_42_Search.md,Pending,Critical (Brand Protection),2026-09-21
+Business & DARPA,Proposal,DARPA AEGIS-MONAD Proposal,04_Business_and_DARPA/proposals/PROJECT_AEGIS_MONAD_DARPA_PROPOSAL.md,Completed,High (Proposal),2026-09-21
+School & DAS,Dissertation,DAS Dissertation Core Framework,03_School_and_DAS/dissertation_chapters/Chapter_01_Introduction.md,Drafting,High (Academic Record),2026-09-21
