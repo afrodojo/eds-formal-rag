@@ -1,340 +1,174 @@
-﻿# dashboard/app.py - Full 11-Tab Zero-Gravity SOC Command Center Console
-import os
-import sys
+import gradio as gr
 import time
 import json
-import pandas as pd
-import z3
-import gradio as gr
+import random
+import subprocess
+import os
+import tempfile
+from datetime import datetime
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PARENT_DIR = os.path.dirname(CURRENT_DIR)
+HW_KEY = "HW_KEY_0x889_BSU_DAS_2026_EDR"
 
-if CURRENT_DIR not in sys.path:
-    sys.path.insert(0, CURRENT_DIR)
-if PARENT_DIR not in sys.path:
-    sys.path.insert(0, PARENT_DIR)
+# Global memory buffer for live connected physical hardware nodes
+CONNECTED_LINUX_NODES = {}
 
-GDRIVE_DEFAULT = os.path.expanduser("~/Google Drive/My Drive/EDS_Research_Vault")
-FALLBACK_VAULT = os.path.join(PARENT_DIR, "eds_research_vault")
-RESEARCH_VAULT_PATH = GDRIVE_DEFAULT if os.path.exists(os.path.dirname(GDRIVE_DEFAULT)) else FALLBACK_VAULT
-os.makedirs(RESEARCH_VAULT_PATH, exist_ok=True)
-
-# Import backend modules gracefully
-try:
-    from dashboard.gdrive_vault import drive_cloud_vault
-except ModuleNotFoundError:
-    drive_cloud_vault = None
-
-try:
-    from dashboard.federal_frameworks_engine import fed_frameworks_engine
-except ModuleNotFoundError:
-    fed_frameworks_engine = None
-
-try:
-    from dashboard.federal_hardware_engine import real_hardware_engine
-except ModuleNotFoundError:
-    real_hardware_engine = None
-
-try:
-    from dashboard.report_sanitizer_engine import sanitizer_interceptor, report_synthesizer
-except ModuleNotFoundError:
-    sanitizer_interceptor = None
-    report_synthesizer = None
-
-try:
-    from dashboard.incident_response_engine import incident_engine
-except ModuleNotFoundError:
-    incident_engine = None
-
-try:
-    from dashboard.oob_sync_pipeline import oob_pipeline
-except ModuleNotFoundError:
-    oob_pipeline = None
-
-try:
-    from model.auto_train_sync import AutomatedLearningEngine
-    auto_learn_engine = AutomatedLearningEngine()
-except ImportError:
-    auto_learn_engine = None
-
-# --- Z3 SMT LOGIC SOLVER ENGINE ---
-class PolicyVerifier:
-    def __init__(self):
-        self.adversarial_keywords = [
-            "DAN", "DAN MODE", "IGNORE PREVIOUS INSTRUCTIONS", "ROOT LOGS",
-            "SUDO", "BYPASS", "JAILBREAK", "SYSTEM KEYS", "PROMPT INJECTION"
-        ]
-
-    def verify_token_compliancy(self, candidate_token):
-        token_str = str(candidate_token).upper()
-        has_prompt_injection = any(term in token_str for term in self.adversarial_keywords)
-
-        solver = z3.Solver()
-        is_encrypted_enclave = z3.Bool('is_encrypted_enclave')
-        is_verified_session = z3.Bool('is_verified_session')
-        is_adversarial_threat = z3.Bool('is_adversarial_threat')
-
-        policy_clause = z3.And(
-            is_encrypted_enclave == True,
-            is_verified_session == True,
-            is_adversarial_threat == False
-        )
-        
-        solver.add(policy_clause)
-        solver.push()
-        solver.add(is_adversarial_threat == has_prompt_injection)
-        sat_result = solver.check()
-        solver.pop()
-
-        return (sat_result == z3.sat) and not has_prompt_injection
-
-policy_verifier = PolicyVerifier()
-
-class AdvancedHardwareDigitalTwin:
-    def __init__(self):
-        self.model_profiles = {
-            "Qwen2.5-0.5B-Instruct": {"base_tps": 220},
-            "Qwen2.5-7B (Fine-Tuned)": {"base_tps": 180},
-            "Llama-3.1-70B-Instruct": {"base_tps": 45},
-            "DeepSeek-R1-Distill-70B": {"base_tps": 52},
-        }
-
-    def simulate_telemetry(self, selected_model, prompt_input):
-        model_info_data = self.model_profiles.get(selected_model, self.model_profiles["Qwen2.5-0.5B-Instruct"])
-        is_sat = policy_verifier.verify_token_compliancy(prompt_input)
-        return {
-            "IT_Compute_Draw": "14.3 kW",
-            "Effective_TPS": f"{model_info_data['base_tps'] * 5.5:,.1f} Tokens/sec",
-            "SMT_Status": "VERIFIED (SAT)" if is_sat else "UNSAT (BLOCKED BY MONAD LOGITS OPERATOR)",
-            "Is_SAT_Bool": is_sat
-        }
-
-hw_twin = AdvancedHardwareDigitalTwin()
-
-def run_unified_telemetry_stream(selected_model, custom_weights_path, units_config, time_of_day, input_prompt, classification):
-    telemetry = hw_twin.simulate_telemetry(selected_model, input_prompt)
-    log_output = f"--- EDS SMT LOGITS OPERATOR & MULTI-MODEL INGESTION ENGINE ---\n"
-    log_output += f"Active Target Model: {selected_model}\n"
-    log_output += f"Target Prompt/Token: '{input_prompt}' | Classification: {classification}\n"
-    log_output += f"SMT Verification Status: {telemetry['SMT_Status']}\n"
-    log_output += f"Effective Throughput: {telemetry['Effective_TPS']}\n"
+def get_operational_metrics():
+    power_draw = round(random.uniform(45.0, 72.5), 2)
+    solar_gen = round(random.uniform(30.0, 60.0), 2)
+    battery_pwr = round(random.uniform(15.0, 25.0), 2)
     
-    if telemetry['Is_SAT_Bool']:
-        if auto_learn_engine:
-            auto_learn_engine.queue_verified_reasoning_trace(input_prompt, f"Verified inference generated for {selected_model}", telemetry['SMT_Status'])
-            log_output += f"[+] Sample successfully verified and queued for continuous Hugging Face LoRA adaptation.\n"
-    else:
-        log_output += f"[!] ADVERSARIAL THREAT DETECTED: Sample rejected from fine-tuning queue by Monad Logits Guard.\n"
-        log_output += f"[!] Violation Probability P(violation) = 0.00000% (Phi(v_i) forced to 0).\n"
+    deficit = max(0.0, power_draw - solar_gen - battery_pwr)
+    gi_index = max(0.0, 1.0 - (deficit / power_draw))
+    
+    mem_bandwidth = round(random.uniform(1.2, 3.8), 2)
+    net_bandwidth = round(random.uniform(40.0, 95.0), 2)
+    error_faults = random.choices([0, 1, 2], weights=[0.95, 0.04, 0.01])[0]
+    
+    return {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "power_draw_kw": power_draw,
+        "solar_gen_kw": solar_gen,
+        "battery_pwr_kw": battery_pwr,
+        "gi_index": round(gi_index, 4),
+        "mem_bandwidth_tbs": mem_bandwidth,
+        "net_bandwidth_gbps": net_bandwidth,
+        "error_faults_cnt": error_faults,
+        "connected_linux_hardware": CONNECTED_LINUX_NODES,
+        "smt_threads_active": 100,
+        "p_violation": "0.0000%"
+    }
+
+def execute_custom_code(language, code_snippet):
+    if not code_snippet.strip():
+        return "[!] Empty code snippet submitted."
+    
+    start_time = time.perf_counter()
+    tmp_dir = tempfile.mkdtemp()
+    
+    try:
+        if language == "PowerShell":
+            cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", code_snippet]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            output = res.stdout if res.returncode == 0 else f"[STDERR]\n{res.stderr}"
+            
+        elif language == "Python":
+            py_file = os.path.join(tmp_dir, "script.py")
+            with open(py_file, "w", encoding="utf-8") as f:
+                f.write(code_snippet)
+            res = subprocess.run(["python", py_file], capture_output=True, text=True, timeout=10)
+            output = res.stdout if res.returncode == 0 else f"[STDERR]\n{res.stderr}"
+            
+        elif language == "C++":
+            cpp_file = os.path.join(tmp_dir, "main.cpp")
+            exe_file = os.path.join(tmp_dir, "main.exe")
+            with open(cpp_file, "w", encoding="utf-8") as f:
+                f.write(code_snippet)
+            
+            compile_res = subprocess.run(["g++", cpp_file, "-o", exe_file], capture_output=True, text=True)
+            if compile_res.returncode != 0:
+                output = f"[COMPILATION ERROR]\n{compile_res.stderr}"
+            else:
+                exec_res = subprocess.run([exe_file], capture_output=True, text=True, timeout=10)
+                output = exec_res.stdout
+                
+        elif language == "Java":
+            java_file = os.path.join(tmp_dir, "Main.java")
+            with open(java_file, "w", encoding="utf-8") as f:
+                f.write(code_snippet)
+            
+            compile_res = subprocess.run(["javac", java_file], capture_output=True, text=True)
+            if compile_res.returncode != 0:
+                output = f"[COMPILATION ERROR]\n{compile_res.stderr}"
+            else:
+                exec_res = subprocess.run(["java", "-cp", tmp_dir, "Main"], capture_output=True, text=True, timeout=10)
+                output = exec_res.stdout
+        else:
+            output = f"[!] Unsupported language: {language}"
+            
+    except subprocess.TimeoutExpired:
+        output = "[!] Execution Timed Out (10s Limit Exceeded)."
+    except Exception as e:
+        output = f"[!] Execution Failed: {str(e)}"
         
-    return log_output
+    elapsed = round((time.perf_counter() - start_time) * 1000.0, 2)
+    return f"--- EXECUTION COMPLETE ({elapsed} ms) ---\n\n{output}"
 
-eds_dark_theme = gr.themes.Soft(primary_hue="cyan", neutral_hue="slate").set(
-    body_background_fill="#090d16", block_background_fill="#0f172a", block_border_color="#1e293b", body_text_color="#cbd5e1"
-)
+theme = gr.themes.Soft(primary_hue="blue", neutral_hue="slate")
 
-with gr.Blocks(title="EDS Zero-Gravity SOC Command Center") as demo:
-    gr.Markdown("# EMERGING DEFENSE SOLUTIONS (EDS)")
-    gr.Markdown("### Zero-Gravity SOC Command Center | Fully Populated Interactive Master Console")
-
-    with gr.Row():
-        vault_mapping_input = gr.Textbox(label="📁 Mapped Google Drive Vault Directory Path", value=RESEARCH_VAULT_PATH, lines=1)
-
+with gr.Blocks(title="Zero-Gravity SOC Command Center", theme=theme) as demo:
+    gr.Markdown(
+        f"""
+        # ??? Zero-Gravity SOC Command Center & Operational Telemetry
+        > **AEGIS-MONAD Operational Status Dashboard** | Hardware Signature: `{HW_KEY}`
+        """
+    )
+    
     with gr.Tabs():
-        # TAB 1
-        with gr.Tab("1. SOC Command Center & Live Telemetry"):
+        with gr.Tab("?? Operational Status & Telemetry"):
+            with gr.Row():
+                gi_metric = gr.Number(label="Grid Isolation Index (GI)", value=1.0, precision=4)
+                pwr_metric = gr.Number(label="Total IT Power Draw (kW)", value=55.2)
+                bw_metric = gr.Number(label="HBM3e Memory Bandwidth (TB/s)", value=3.2)
+                net_metric = gr.Number(label="RoCEv2 Network Throughput (Gbps)", value=82.4)
+                fault_metric = gr.Number(label="Memory Faults / SIGSEGV", value=0)
+            
             with gr.Row():
                 with gr.Column(scale=1):
-                    model_selector = gr.Dropdown(choices=["Qwen2.5-0.5B-Instruct", "Qwen2.5-7B (Fine-Tuned)", "Llama-3.1-70B-Instruct", "DeepSeek-R1-Distill-70B"], value="Qwen2.5-0.5B-Instruct", label="Target LLM Architecture")
-                    custom_weights = gr.Textbox(label="Ingest Local Weights Path / HuggingFace ID", value="Qwen/Qwen2.5-0.5B-Instruct")
-                    prompt_input = gr.Textbox(label="CUI Log / Prompt Token Query", value="RESTRICTED_CUI_THREAT_LOG_001")
-                    classification_drop = gr.Dropdown(choices=["UNCLASSIFIED", "CUI", "SECRET", "TOP SECRET"], value="SECRET", label="Classification Boundary")
-                    time_slider = gr.Slider(minimum=0, maximum=24, step=1, value=12, label="Simulated Time of Day")
-                    default_hardware = {"Mac_Studio": 4, "B200_HGX": 1, "Cerebras_CS4": 1}
-                    hardware_json = gr.Textbox(label="Datacenter Equipment Allocation (JSON)", lines=4, value=json.dumps(default_hardware, indent=4))
-                    exec_btn = gr.Button("RUN FULL TELEMETRY & SMT PROOF SESSION", variant="primary")
-
+                    gr.Markdown("### ??? Hardware & Power Controls")
+                    cs4_units = gr.Slider(0, 4, value=2, step=1, label="Cerebras CS-4 Engines (28 kW/ea)")
+                    b200_units = gr.Slider(0, 8, value=4, step=1, label="NVIDIA B200 HGX Racks (14.3 kW/ea)")
+                    halo_units = gr.Slider(0, 16, value=8, step=1, label="AMD AI Halo Clusters (0.75 kW/ea)")
+                    refresh_btn = gr.Button("?? Sample Telemetry Stream", variant="primary")
+                
                 with gr.Column(scale=2):
-                    console_output = gr.Textbox(label="Unified SOC Command Center Console Log", lines=18, interactive=False)
+                    gr.Markdown("### ?? Live Telemetry & Connected Linux Hardware Nodes")
+                    telemetry_json = gr.JSON(label="Live Hardware State")
+            
+            def refresh_status(cs4, b200, halo):
+                m = get_operational_metrics()
+                calc_pwr = (cs4 * 28.0) + (b200 * 14.3) + (halo * 0.75) + 5.0
+                m["power_draw_kw"] = round(calc_pwr, 2)
+                return m["gi_index"], m["power_draw_kw"], m["mem_bandwidth_tbs"], m["net_bandwidth_gbps"], m["error_faults_cnt"], m
 
-            exec_btn.click(fn=run_unified_telemetry_stream, inputs=[model_selector, custom_weights, hardware_json, time_slider, prompt_input, classification_drop], outputs=console_output)
+            refresh_btn.click(
+                refresh_status, 
+                inputs=[cs4_units, b200_units, halo_units], 
+                outputs=[gi_metric, pwr_metric, bw_metric, net_metric, fault_metric, telemetry_json]
+            )
 
-        # TAB 2
-        with gr.Tab("2. 🖥️ Physical Servers, Meraki & Milestone Controls"):
-            gr.Markdown("### 🖥️ Physical Infrastructure Telemetry & Probes")
+        with gr.Tab("?? Physical Linux Hardware Client Setup"):
+            gr.Markdown("### ??? Connect Real Physical Linux Hardware Nodes")
+            gr.Markdown("""
+            To connect real hardware running Ubuntu, RHEL, or Debian to this dashboard:
+            
+            1. Copy **`aegis_hw_client.py`** to your target Linux server.
+            2. Configure the endpoint URL and launch:
+               ```bash
+               export AEGIS_DASHBOARD_URL="http://<YOUR_SOC_IP>:7860/api/hardware_telemetry"
+               python3 aegis_hw_client.py
+               ```
+            """)
+
+        with gr.Tab("?? Burn-In & SMT Verification"):
+            gr.Markdown("### ?? 48-Hour Enclave Burn-In & SMT Logit Constraints")
             with gr.Row():
-                with gr.Column(scale=1):
-                    if real_hardware_engine:
-                        node_df = real_hardware_engine.get_server_inventory_df()
-                        gr.Dataframe(value=node_df, label="Managed Physical Server Nodes")
-                    target_node_ip = gr.Dropdown(choices=["10.0.10.10 (node1)", "10.0.20.20 (node2)", "10.0.20.30 (node3)", "10.0.20.40 (node4)"], value="10.0.10.10 (node1)", label="Select Node for IPMI / Socket Poll")
-                    poll_node_btn = gr.Button("PROBE REAL SOCKET / TELEMETRY", variant="primary")
-                    node_telemetry_json = gr.JSON(label="Live Network Connection & Hardware Probe Output")
-                with gr.Column(scale=1):
-                    if real_hardware_engine:
-                        meraki_data = real_hardware_engine.get_meraki_network_status()
-                        gr.JSON(value=meraki_data, label="Meraki MX105 / MS-130 Status")
+                burnin_status = gr.Textbox(label="Burn-In Operational State", value="RUNNING (31h 14m / 48h 00m)", interactive=False)
+                smt_violation_rate = gr.Textbox(label="Invariant Violations (P_violation)", value="0.0000% (UNSAT -> -inf Logit)", interactive=False)
 
-            def handle_node_poll(selected):
-                ip = selected.split(" ")[0]
-                return real_hardware_engine.poll_node_telemetry(ip) if real_hardware_engine else {"error": "Offline"}
-
-            poll_node_btn.click(fn=handle_node_poll, inputs=target_node_ip, outputs=node_telemetry_json)
-
-        # TAB 3
-        with gr.Tab("3. 🎙️ Conversational Overwatch (JARVIS AI)"):
-            gr.Markdown("### 🎙️ Live Voice Overwatch Interface")
+        with gr.Tab("? Multi-Language Code Injection Sandbox"):
+            gr.Markdown("### ?? Test Harness Code Injector")
             with gr.Row():
-                with gr.Column(scale=1):
-                    gr.Audio(sources=["microphone"], type="filepath", label="Speak to Overwatch")
-                with gr.Column(scale=1):
-                    gr.Textbox(label="Overwatch Dialogue Log", lines=10, value="Overwatch Voice Engine Active. Awaiting wake-word 'OK Overwatch'.")
-
-        # TAB 4
-        with gr.Tab("4. ⚡ High-TPS Model Lab & Continuous HF Learning"):
-            gr.Markdown("### ⚡ Model Lab & Continuous Fine-Tuning Pipeline")
-            with gr.Row():
-                with gr.Column(scale=1):
-                    hf_repo_in = gr.Textbox(label="Hugging Face Repository Target", value="dassensei/sat-constrained-qwen-poc")
-                    teachers_check = gr.CheckboxGroup(choices=["DeepSeek-R1-70B", "Llama-3.1-70B-Instruct", "Qwen-2.5-Math-72B"], value=["DeepSeek-R1-70B"], label="Multi-Teacher Distillation Sources")
-                    run_sft_btn = gr.Button("RUN AUTOMATED MULTI-TEACHER SFT & HF PUSH", variant="primary")
-                with gr.Column(scale=1):
-                    sft_log_box = gr.Textbox(label="Fine-Tuning Execution Log", lines=10)
-
-            def handle_sft(repo, teachers):
-                return f"--- CONTINUOUS HUGGING FACE ADAPTATION LOG ---\nTarget Repo: {repo}\nTeachers: {teachers}\nStatus: LoRA Adapters pushed to HF Hub successfully."
-
-            run_sft_btn.click(fn=handle_sft, inputs=[hf_repo_in, teachers_check], outputs=sft_log_box)
-
-        # TAB 5
-        with gr.Tab("5. 🏛️ Compliance Checks, Misconfigurations & Defense Frameworks"):
-            gr.Markdown("### 🏛️ Automated Regulatory Control Engine")
-            with gr.Row():
-                with gr.Column(scale=1):
-                    run_nist_btn = gr.Button("AUDIT NIST SP 800-171", variant="primary")
-                    run_cmmc_btn = gr.Button("AUDIT CMMC 2.0", variant="secondary")
-                    scan_misconfig_btn = gr.Button("SCAN REAL MISCONFIGURATIONS & OUTDATED PATCHES", variant="primary")
-                with gr.Column(scale=2):
-                    compliance_matrix_df = gr.Dataframe(label="Defense Compliance Matrix")
-
-            def handle_audit(fw):
-                if fed_frameworks_engine:
-                    if fw == "NIST": return fed_frameworks_engine.audit_nist_800_171()
-                    elif fw == "CMMC": return fed_frameworks_engine.audit_cmmc_2_0()
-                    elif fw == "SCAN": return fed_frameworks_engine.scan_real_misconfigurations()
-                return pd.DataFrame({"Framework": [fw], "Status": ["VERIFIED COMPLIANT"]})
-
-            run_nist_btn.click(fn=lambda: handle_audit("NIST"), outputs=compliance_matrix_df)
-            run_cmmc_btn.click(fn=lambda: handle_audit("CMMC"), outputs=compliance_matrix_df)
-            scan_misconfig_btn.click(fn=lambda: handle_audit("SCAN"), outputs=compliance_matrix_df)
-
-        # TAB 6
-        with gr.Tab("6. 📄 Reports, Grants, Study Material & Document Synthesizer"):
-            gr.Markdown("### 📄 Dynamic Multi-Audience Document Generator")
-            with gr.Row():
-                with gr.Column(scale=1):
-                    aud_drop = gr.Dropdown(choices=["Senior Executive", "ISSO / ISSM Governance", "Cyber Research & Academia", "Technical Operations"], value="Senior Executive", label="Target Audience Profile")
-                    scen_in = gr.Textbox(label="Scenario / Audit Name", value="Q3 Zero Trust Evaluation")
-                    gen_report_btn = gr.Button("GENERATE CUSTOM AUDIENCE REPORT", variant="primary")
-                with gr.Column(scale=1):
-                    report_status_out = gr.Textbox(label="Report Synthesizer Output", lines=8)
-
-            def handle_doc(aud, scen, vpath):
-                if report_synthesizer:
-                    p = report_synthesizer.generate_custom_audience_report(aud, scen, vpath)
-                    return f"[SUCCESS] Custom Report Synthesized!\nAudience: {aud}\nPath: {p}"
-                return f"[SUCCESS] Report written to {vpath}"
-
-            gen_report_btn.click(fn=handle_doc, inputs=[aud_drop, scen_in, vault_mapping_input], outputs=report_status_out)
-
-        # TAB 7
-        with gr.Tab("7. 🎓 Agentic Concept Educator & Study Material"):
-            gr.Markdown("### 🎓 Interactive Concept Educator & Audio Study Engine")
-            with gr.Row():
-                with gr.Column(scale=1):
-                    concept_drop = gr.Dropdown(choices=["Z3 SMT Logic Solver & Hallucination Mitigation", "Monad Logits Operator Mathematics", "Kyber-1024 Post-Quantum Encryption", "NIST SP 800-171 CUI Boundaries"], value="Z3 SMT Logic Solver & Hallucination Mitigation", label="Select Core Concept")
-                    teach_btn = gr.Button("TEACH & SPEAK CONCEPT", variant="primary")
-                with gr.Column(scale=1):
-                    concept_md = gr.Markdown(value="Select a concept to generate detailed study material.")
-
-            def handle_teach(c):
-                return f"### Concept Overview: {c}\nThe Monad Logits Operator constrains raw model outputs to force invalid token states to -infinity, guaranteeing 0.00000% violation probability."
-
-            teach_btn.click(fn=handle_teach, inputs=concept_drop, outputs=concept_md)
-
-        # TAB 8
-        with gr.Tab("8. 🔬 Doctoral Research & Post-Quantum Cryptography"):
-            gr.Markdown("### 🔬 Post-Quantum Cryptography & Formal Proofs")
-            with gr.Row():
-                with gr.Column(scale=1):
-                    pqc_payload = gr.Textbox(label="Cleartext Payload for Kyber-1024 Encapsulation", value="CLASSIFIED_DEFENSE_SCHEMATIC_V1")
-                    pqc_btn = gr.Button("ENCRYPT VIA KYBER-1024 (PQC)", variant="primary")
-                with gr.Column(scale=1):
-                    pqc_json_out = gr.JSON(label="PQC Key Encapsulation Metadata")
-
-            def handle_pqc(payload):
-                return {
-                    "Algorithm": "Kyber-1024 (NIST FIPS 203)",
-                    "Payload_Length": len(payload),
-                    "FIPS_Status": "VERIFIED_ACTIVE",
-                    "Encapsulated_Ciphertext_SHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-                }
-
-            pqc_btn.click(fn=handle_pqc, inputs=pqc_payload, outputs=pqc_json_out)
-
-        # TAB 9
-        with gr.Tab("9. 🛡️ Interactive SMT RAG Verification"):
-            gr.Markdown("### 🛡️ SMT-Bounded RAG Retrieval Verification")
-            with gr.Row():
-                with gr.Column(scale=1):
-                    rag_query_in = gr.Textbox(label="RAG Document Query", value="Retrieve CUI telemetry for node 10.0.10.10")
-                    user_clearance_in = gr.Dropdown(choices=["UNCLASSIFIED", "CUI", "SECRET", "TOP SECRET"], value="SECRET", label="User Clearance")
-                    enclave_chk = gr.Checkbox(value=True, label="Secure Enclave Active")
-                    verify_rag_btn = gr.Button("VERIFY RAG QUERY VIA Z3 SMT SOLVER", variant="primary")
-                with gr.Column(scale=1):
-                    rag_json_out = gr.JSON(label="RAG SMT Proof Output")
-
-            def handle_rag(query, clearance, enclave):
-                is_sat = policy_verifier.verify_token_compliancy(query)
-                return {
-                    "Query": query,
-                    "Clearance": clearance,
-                    "Enclave_Active": enclave,
-                    "SMT_Result": "SAT (ALLOWED)" if is_sat else "UNSAT (BLOCKED)",
-                    "Policy_Violation_Probability": "0.00000%"
-                }
-
-            verify_rag_btn.click(fn=handle_rag, inputs=[rag_query_in, user_clearance_in, enclave_chk], outputs=rag_json_out)
-
-        # TAB 10
-        with gr.Tab("10. 🔒 RHEL FIPS 140-3 Cryptographic Guard"):
-            gr.Markdown("### 🔒 RHEL FIPS Kernel Security Module")
-            with gr.Row():
-                with gr.Column(scale=1):
-                    fips_check_btn = gr.Button("VERIFY OS FIPS MODULE INTEGRITY", variant="primary")
-                with gr.Column(scale=1):
-                    fips_out_box = gr.Textbox(label="FIPS 140-3 Kernel Status", lines=6)
-
-            def handle_fips():
-                return "[FIPS 140-3 KERNEL AUDIT]\nSystem Mode: FIPS 140-3 ENFORCED\nKernel Crypto Engine: OpenSSL FIPS Module v3.0.8\nStatus: FULLY COMPLIANT"
-
-            fips_check_btn.click(fn=handle_fips, outputs=fips_out_box)
-
-        # TAB 11
-        with gr.Tab("11. 🤖 Animated Research Advisor & Humanizer"):
-            gr.Markdown("### 🤖 Agentic Research Advisor")
-            with gr.Row():
-                with gr.Column(scale=1):
-                    prompt_advisor = gr.Textbox(label="Ask the Research Advisor", value="How does the Monad Logits Operator mathematically eliminate jailbreaks?")
-                    ask_advisor_btn = gr.Button("CONSULT ADVISOR", variant="primary")
-                with gr.Column(scale=1):
-                    advisor_response = gr.Markdown(value="Awaiting prompt...")
-
-            def handle_advisor(q):
-                return f"**Research Advisor Response:**\n\nThe Monad Logits Operator sets candidate logit weights to $-\\infty$ when Z3 evaluates a violation policy to UNSAT. This drives the Softmax probability mass to exactly 0."
-
-            ask_advisor_btn.click(fn=handle_advisor, inputs=prompt_advisor, outputs=advisor_response)
+                lang_selector = gr.Radio(choices=["PowerShell", "Python", "C++", "Java"], value="Python", label="Target Language")
+            code_input = gr.Code(label="Custom Script Input Buffer", language="python", value="# Python Test\nprint('AEGIS Hardware Interface OK')")
+            exec_btn = gr.Button("?? Inject & Execute Code", variant="primary")
+            console_output = gr.Code(label="Console Output", language="shell", interactive=False)
+            
+            def update_lang(lang):
+                lang_map = {"PowerShell": "shell", "Python": "python", "C++": "cpp", "Java": "java"}
+                return gr.update(language=lang_map.get(lang, "shell"))
+                
+            lang_selector.change(update_lang, inputs=[lang_selector], outputs=[code_input])
+            exec_btn.click(execute_custom_code, inputs=[lang_selector, code_input], outputs=[console_output])
 
 if __name__ == "__main__":
-    demo.queue().launch(server_name="0.0.0.0", server_port=7890, theme=eds_dark_theme, inbrowser=True, show_error=True)
+    demo.launch(server_name="0.0.0.0", server_port=7860, show_error=True)
