@@ -130,3 +130,10 @@ You are welcome to read, review, cite, and fork this research framework to deplo
 # Set API Credentials & Launch Command Center Server
 $env:ELEVENLABS_API_KEY="your_api_key_here"
 python -B dashboard/app.py
+
+---
+
+### Instructions to Update on GitHub:
+1. Select all text in your browser window on GitHub (`Ctrl + A`).
+2. Paste the snippet above over it (`Ctrl + V`).
+3. Click the green **"Commit changes..."** button at the top right.
