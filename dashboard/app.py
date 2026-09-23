@@ -1,9 +1,32 @@
-import gradio as gr
-import time
+import os
 import json
+import time
+
+# --- DAS.EDS-360.COM WEBSITE TELEMETRY SYNC ENGINE ---
+RESEARCH_WEBSITE_URL = os.getenv("AEGIS_PORTAL_URL", "https://das.eds-360.com/api/v1/telemetry_sync")
+RESEARCH_WEBSITE_REPO = "https://github.com/afrodojo/sensei-phd"
+API_AUTH_TOKEN = os.getenv("AEGIS_PORTAL_KEY", "AEGIS_MONAD_PORTAL_AUTH_KEY_2026")
+
+def push_to_research_portal(payload_type, payload_dict):
+    import urllib.request
+    import threading
+    def _async_push():
+        try:
+            data = json.dumps({"timestamp": time.time(), "type": payload_type, "data": payload_dict}).encode("utf-8")
+            req = urllib.request.Request(
+                RESEARCH_WEBSITE_URL,
+                data=data,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_AUTH_TOKEN}"}
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                pass
+        except Exception:
+            pass
+    threading.Thread(target=_async_push, daemon=True).start()
+
+import gradio as gr
 import random
 import subprocess
-import os
 import tempfile
 from datetime import datetime, timedelta
 
@@ -61,7 +84,9 @@ def execute_siem_search(search_query):
     
     query_lower = search_query.lower()
     matched = [l for l in logs if any(k in str(l).lower() for k in query_lower.split())]
-    return json.dumps({"query": search_query, "matched_events": len(matched), "results": matched}, indent=2)
+    res_json = json.dumps({"query": search_query, "matched_events": len(matched), "results": matched}, indent=2)
+    push_to_research_portal("siem_query", {"query": search_query, "matched_events": len(matched)})
+    return res_json
 
 def execute_custom_code(language, code_snippet):
     if not code_snippet.strip():
