@@ -1,0 +1,24 @@
+﻿# PROJECT AEGIS-MONAD: AMD SEV-SNP TEE ENCLAVE ARCHITECTURE
+Hardware Signature Invariant: HW_KEY_0x889_BSU_DAS_2026_EDR
+Candidate Program Manager: Asaad Morman (Doctor of Applied Science Candidate, Bowie State University)
+
+---
+
+## 1. AMD SEV-SNP Guest VMPL 0 Execution Enclave
+* Hardware-attested memory encryption isolation running at Virtual Machine Privilege Level 0.
+* Zero-trust hypervisor boundary protecting LLM weights, SMT logic formulas, and vector memory from host inspection or side-channel snooping.
+
+## 2. Z3 SMT Monad Logit Transformation Operator
+* Pre-sampling formal gatekeeper evaluating candidate logits L_i prior to softmax sampling:
+  L_hat_i = L_i + log Phi(v_i)
+* Where Phi(v_i) evaluates to 1 if SMT_Verify(v_i) = SAT, and 0 if UNSAT.
+* If a token violates security policy (e.g. HasCUI(v_i) implies IsEncryptedEnclave and IsVerifiedSession), log(0) = -infinity, reducing violation probability to P_violation = 0.
+* Concurrency Protection: Thread-isolated solver contexts (z3.Context()) eliminate native C++ memory access violations under high-throughput parallel queries.
+
+## 3. PI-RAG Vector Engine & Differential Privacy
+* (epsilon, delta)-Differential Privacy noise gate perturbs vector embeddings using Gaussian noise to prevent database inversion attacks.
+* Immutable Provenance: Injects zero-width steganographic markers (U+200B / U+200C) bound directly to HW_KEY_0x889_BSU_DAS_2026_EDR into the verified output stream.
+
+## 4. Expeditionary Microgrid Telemetry Twin
+* Real-time optimization balancing compute draw across Cerebras CS-4, NVIDIA B200/H200, and AMD AI Halo clusters against solar and battery reserves.
+* Grid Isolation Index (GI) monitoring with liquid immersion cooling heat recapture for tactical forward posts.

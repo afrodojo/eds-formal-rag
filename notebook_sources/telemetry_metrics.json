@@ -1,0 +1,73 @@
+[
+  {
+    "timestamp": "2026-09-22T02:55:50.307680",
+    "source": "HuggingFace_Hub",
+    "items_processed": 1500,
+    "elapsed_ms": 120.5,
+    "ingestion_rate_per_sec": 12448.13,
+    "failures_detected": 0,
+    "status": "SUCCESS",
+    "hardware_key": "HW_KEY_0x889_BSU_DAS_2026_EDR"
+  },
+  {
+    "timestamp": "2026-09-22T02:55:50.307680",
+    "source": "Render_Inference_Node",
+    "items_processed": 500,
+    "elapsed_ms": 45.2,
+    "ingestion_rate_per_sec": 11061.95,
+    "failures_detected": 0,
+    "status": "SUCCESS",
+    "hardware_key": "HW_KEY_0x889_BSU_DAS_2026_EDR"
+  },
+  {
+    "timestamp": "2026-09-22T02:55:50.308672",
+    "source": "SMT_Monad_Evaluator",
+    "items_processed": 2000,
+    "elapsed_ms": 180.0,
+    "ingestion_rate_per_sec": 11111.11,
+    "failures_detected": 0,
+    "status": "PASSED_ZERO_VIOLATION",
+    "hardware_key": "HW_KEY_0x889_BSU_DAS_2026_EDR"
+  },
+  {
+    "timestamp": "2026-09-23T13:31:48.747546",
+    "source": "HuggingFace_Hub",
+    "items_processed": 1500,
+    "elapsed_ms": 120.5,
+    "ingestion_rate_per_sec": 12448.13,
+    "failures_detected": 0,
+    "status": "SUCCESS",
+    "hardware_key": "HW_KEY_0x889_BSU_DAS_2026_EDR"
+  },
+  {
+    "timestamp": "2026-09-23T13:31:48.748547",
+    "source": "Render_Inference_Node",
+    "items_processed": 500,
+    "elapsed_ms": 45.2,
+    "ingestion_rate_per_sec": 11061.95,
+    "failures_detected": 0,
+    "status": "SUCCESS",
+    "hardware_key": "HW_KEY_0x889_BSU_DAS_2026_EDR"
+  },
+  {
+    "timestamp": "2026-09-23T13:31:48.748547",
+    "source": "SMT_Monad_Evaluator",
+    "items_processed": 2000,
+    "elapsed_ms": 180.0,
+    "ingestion_rate_per_sec": 11111.11,
+    "failures_detected": 0,
+    "status": "PASSED_ZERO_VIOLATION",
+    "hardware_key": "HW_KEY_0x889_BSU_DAS_2026_EDR"
+  },
+  {
+    "timestamp": "2026-09-23T14:01:38.557583",
+    "source": "SMT_Concurrency_Harness",
+    "items_processed": 100,
+    "elapsed_ms": 539.25,
+    "ingestion_rate_per_sec": 185.44,
+    "failures_detected": 0,
+    "policy_violations_blocked": 25,
+    "status": "PASSED_ZERO_VIOLATION",
+    "hardware_key": "HW_KEY_0x889_BSU_DAS_2026_EDR"
+  }
+]
