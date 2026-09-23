@@ -2,6 +2,36 @@ import os
 import json
 import time
 
+# --- HUGGING FACE DATASET & LEARNING RAG PUSH ENGINE ---
+HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+HF_DATASET_REPO = os.getenv("HF_DATASET_REPO", "afrodojo/aegis-monad-rag-logs")
+
+def push_to_huggingface_rag(event_type, payload_dict):
+    import threading
+    def _hf_async_upload():
+        try:
+            from huggingface_hub import HfApi
+            if not HF_TOKEN:
+                return
+            api = HfApi(token=HF_TOKEN)
+            entry = {
+                "timestamp": time.time(),
+                "event_type": event_type,
+                "payload": payload_dict
+            }
+            content = json.dumps(entry) + "\n"
+            file_name = f"rag_telemetry_{int(time.time())}.jsonl"
+            api.upload_file(
+                path_or_bytes=content.encode("utf-8"),
+                path_in_repo=f"live_stream/{file_name}",
+                repo_id=HF_DATASET_REPO,
+                repo_type="dataset"
+            )
+        except Exception:
+            pass
+    threading.Thread(target=_hf_async_upload, daemon=True).start()
+
+
 # --- DAS.EDS-360.COM WEBSITE TELEMETRY SYNC ENGINE ---
 RESEARCH_WEBSITE_URL = os.getenv("AEGIS_PORTAL_URL", "https://das.eds-360.com/api/v1/telemetry_sync")
 RESEARCH_WEBSITE_REPO = "https://github.com/afrodojo/sensei-phd"
