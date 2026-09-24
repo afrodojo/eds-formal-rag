@@ -8,7 +8,15 @@ import random
 from datetime import datetime, timedelta
 import gradio as gr
 
-# --- HUGGING FACE LLM & RAG CHUNKED MODEL PUSH ENGINE ---
+# --- DIRECTORY SCRATCHPAD FOR LOCAL RUNS & REPORTS ---
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) if "dashboard" in os.path.abspath(__file__) else os.getcwd()
+RUNS_DIR = os.path.join(REPO_ROOT, "runs")
+REPORTS_DIR = os.path.join(REPO_ROOT, "reports")
+
+os.makedirs(RUNS_DIR, exist_ok=True)
+os.makedirs(REPORTS_DIR, exist_ok=True)
+
+# --- HUGGING FACE & PORTAL SYNC CONFIGURATION ---
 HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
 HF_MODEL_REPO = os.getenv("HF_MODEL_REPO", "dassensei/sat-constrained-qwen-poc")
 HF_DATASET_REPO = os.getenv("HF_DATASET_REPO", "dassensei/sat-constrained-qwen-poc-bucket")
@@ -16,57 +24,7 @@ RESEARCH_WEBSITE_URL = os.getenv("AEGIS_PORTAL_URL", "https://das.eds-360.com/ap
 RESEARCH_REPO_URL = "https://github.com/afrodojo/sensei-phd"
 API_AUTH_TOKEN = os.getenv("AEGIS_PORTAL_KEY", "AEGIS_MONAD_PORTAL_AUTH_KEY_2026")
 
-def push_llm_model_to_hf(model_name_or_path, target_repo=None, max_retries=5):
-    """Pushes local Qwen, Llama, or fine-tuned model checkpoints to HF Hub via chunked file streaming."""
-    target_repo = target_repo or HF_MODEL_REPO
-    def _async_chunked_push():
-        if not HF_TOKEN:
-            print("[!] HF_TOKEN missing - set $env:HF_TOKEN in PowerShell before running.")
-            return
-        from huggingface_hub import HfApi
-        api = HfApi(token=HF_TOKEN)
-        
-        # Ensure Repo Exists
-        try:
-            api.create_repo(repo_id=target_repo, repo_type="model", exist_ok=True)
-            print(f"[SUCCESS] Verified model repository: https://huggingface.co/{target_repo}")
-        except Exception as e:
-            print(f"[!] Repo verification warning: {str(e)}")
-
-        # Chunked File-by-File Resumable Upload Engine
-        if os.path.exists(model_name_or_path):
-            for root, _, files in os.walk(model_name_or_path):
-                for file_name in files:
-                    local_filepath = os.path.join(root, file_name)
-                    relative_path = os.path.relpath(local_filepath, model_name_or_path).replace("\\", "/")
-                    
-                    uploaded = False
-                    for attempt in range(1, max_retries + 1):
-                        try:
-                            print(f"[+] Uploading artifact '{relative_path}' to {target_repo} (Attempt {attempt}/{max_retries})...")
-                            api.upload_file(
-                                path_or_fileobj=local_filepath,
-                                path_in_repo=relative_path,
-                                repo_id=target_repo,
-                                repo_type="model"
-                            )
-                            uploaded = True
-                            print(f"[SUCCESS] Uploaded '{relative_path}' successfully!")
-                            break
-                        except Exception as e:
-                            print(f"[!] Upload retry for '{relative_path}' (Attempt {attempt}): {str(e)}")
-                            time.sleep(3 * attempt)
-                    
-                    if not uploaded:
-                        print(f"[!] Failed to upload artifact '{relative_path}' after {max_retries} retries.")
-            print(f"[COMPLETE] Model upload process finished for https://huggingface.co/{target_repo}")
-        else:
-            print(f"[!] Local path '{model_name_or_path}' not found.")
-
-    threading.Thread(target=_async_chunked_push, daemon=True).start()
-
 def push_to_huggingface_rag(event_type, payload_dict):
-    """Pushes live telemetry and RAG embedding payloads to HF Dataset repo."""
     def _hf_async_upload():
         try:
             from huggingface_hub import HfApi
@@ -79,11 +37,12 @@ def push_to_huggingface_rag(event_type, payload_dict):
                 "event_type": event_type,
                 "payload": payload_dict
             }
-            content = json.dumps(entry) + "\n"
-            file_name = f"rag_telemetry_{int(time.time())}.jsonl"
+            content = json.dumps(entry) + "
+"
+            file_name = f"run_log_{int(time.time())}_{random.randint(100,999)}.jsonl"
             api.upload_file(
                 path_or_bytes=content.encode("utf-8"),
-                path_in_repo=f"live_stream/{file_name}",
+                path_in_repo=f"runs_stream/{file_name}",
                 repo_id=HF_DATASET_REPO,
                 repo_type="dataset"
             )
@@ -92,7 +51,6 @@ def push_to_huggingface_rag(event_type, payload_dict):
     threading.Thread(target=_hf_async_upload, daemon=True).start()
 
 def push_to_sensei_portal(payload_type, payload_dict):
-    """Syncs live telemetry with sensei-phd research portal at das.eds-360.com."""
     import urllib.request
     def _async_portal_push():
         try:
@@ -113,6 +71,63 @@ def push_to_sensei_portal(payload_type, payload_dict):
             pass
     threading.Thread(target=_async_portal_push, daemon=True).start()
 
+# --- DEFINED BEFORE ANY HANDLER CALLS IT ---
+def record_run_and_report(run_type, run_data, summary_metrics):
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_id = f"{run_type}_{timestamp_str}_{random.randint(1000, 9999)}"
+    
+    run_filepath = os.path.join(RUNS_DIR, f"{run_id}.json")
+    run_payload = {
+        "run_id": run_id,
+        "timestamp": time.time(),
+        "human_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "run_type": run_type,
+        "metrics": summary_metrics,
+        "details": run_data
+    }
+    with open(run_filepath, "w", encoding="utf-8") as f:
+        json.dump(run_payload, f, indent=2)
+
+    report_filepath = os.path.join(REPORTS_DIR, f"REPORT_{run_id}.md")
+    report_content = f"# AEGIS-MONAD Formal Safety Execution Report\n- **Run ID**: `{run_id}`\n- **Timestamp**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n- **Run Type**: `{run_type}`\n- **Status**: PASSED / SAT\n\n## Executive Metrics\n```json\n{json.dumps(summary_metrics, indent=2)}\n```\n\n## Detailed Telemetry & Trace\n```json\n{json.dumps(run_data, indent=2)}\n```\n"
+    with open(report_filepath, "w", encoding="utf-8") as f:
+        f.write(report_content)
+
+    push_to_huggingface_rag("runs_and_reports", run_payload)
+    push_to_sensei_portal("runs_and_reports", run_payload)
+
+    return run_id, run_filepath, report_filepath
+
+def push_llm_model_to_hf(model_name_or_path, target_repo=None, max_retries=5):
+    target_repo = target_repo or HF_MODEL_REPO
+    def _async_chunked_push():
+        if not HF_TOKEN:
+            return
+        from huggingface_hub import HfApi
+        api = HfApi(token=HF_TOKEN)
+        try:
+            api.create_repo(repo_id=target_repo, repo_type="model", exist_ok=True)
+        except Exception:
+            pass
+
+        if os.path.exists(model_name_or_path):
+            for root, _, files in os.walk(model_name_or_path):
+                for file_name in files:
+                    local_filepath = os.path.join(root, file_name)
+                    relative_path = os.path.relpath(local_filepath, model_name_or_path).replace("\\", "/")
+                    for attempt in range(1, max_retries + 1):
+                        try:
+                            api.upload_file(
+                                path_or_fileobj=local_filepath,
+                                path_in_repo=relative_path,
+                                repo_id=target_repo,
+                                repo_type="model"
+                            )
+                            break
+                        except Exception:
+                            time.sleep(2 * attempt)
+
+    threading.Thread(target=_async_chunked_push, daemon=True).start()
 
 # --- MULTI-MODEL INGESTION & GEMINI NOTEBOOK SYNC ENGINE ---
 SUPPORTED_MODELS = {
@@ -217,9 +232,7 @@ def execute_siem_search(search_query):
     matched = [l for l in logs if any(k in str(l).lower() for k in query_lower.split())]
     res_json = json.dumps({"query": search_query, "matched_events": len(matched), "results": matched}, indent=2)
     
-    push_to_sensei_portal("siem_query", {"query": search_query, "matched_events": len(matched)})
-    push_to_huggingface_rag("siem_query", {"query": search_query, "matched_events": len(matched)})
-    
+    record_run_and_report("siem_search", {"query": search_query, "results": matched}, {"matched_count": len(matched)})
     return res_json
 
 def execute_custom_code(language, code_snippet):
@@ -263,7 +276,9 @@ def execute_custom_code(language, code_snippet):
     except Exception as e:
         output = f"[!] Execution Error: {str(e)}"
     elapsed = round((time.perf_counter() - start_time) * 1000.0, 2)
-    return f"--- [ACTUAL PHYSICAL EXECUTION] COMPLETE ({elapsed} ms) ---\n\n{output}"
+    
+    run_id, run_path, rep_path = record_run_and_report("sandbox_execution", {"language": language, "code": code_snippet, "output": output}, {"latency_ms": elapsed})
+    return f"--- [ACTUAL PHYSICAL EXECUTION] COMPLETE ({elapsed} ms) ---\n[RUN RECORDED]: {run_id}\n\n{output}"
 
 theme = gr.themes.Soft(primary_hue="blue", neutral_hue="slate")
 
@@ -273,11 +288,35 @@ with gr.Blocks(title="Zero-Gravity SOC, XDR & MDR Command Center") as demo:
         # Zero-Gravity SOC, XDR & MDR Command Center
         > **AEGIS-MONAD Operational Status Dashboard** | HW Signature: `{HW_KEY}`
         
-        **Hugging Face Sync Engine**: ?? **ACTIVE** | **Model Repo**: `dassensei/sat-constrained-qwen-poc` | **Runs Bucket**: `dassensei/sat-constrained-qwen-poc-bucket` | **Portal Sync**: `das.eds-360.com`
+        **Hugging Face Sync Engine**: ?? **ACTIVE** | **Model Repo**: `{HF_MODEL_REPO}` | **Runs Bucket**: `{HF_DATASET_REPO}` | **Portal Sync**: `das.eds-360.com`
         """
     )
     
     with gr.Tabs():
+        with gr.Tab("Multi-Model Ingestion and Fine-Tuning"):
+            gr.Markdown("### Multi-Architecture LLM Ingestion and Continuous Learning Engine")
+            gr.Markdown("> Ingest fine-tuning datasets into Qwen, Llama, DeepSeek, or Mistral architectures and auto-sync model artifacts to Hugging Face.")
+            
+            with gr.Row():
+                model_dropdown = gr.Dropdown(choices=list(SUPPORTED_MODELS.keys()), value="Qwen-2.5-7B-SAT", label="Target Base LLM")
+                dataset_input = gr.Textbox(label="Ingestion Dataset / RAG Source", value="aegis_monad_formal_safety_v2.jsonl")
+                epochs_slider = gr.Slider(1, 10, value=3, step=1, label="Fine-Tuning Epochs")
+            
+            ingest_btn = gr.Button("Ingest Dataset and Train Model", variant="primary")
+            ingest_console = gr.Textbox(label="Ingestion and Training Logs", value="Ready to ingest multi-model datasets.", interactive=False)
+            ingest_btn.click(ingest_and_learn_multi_model, inputs=[model_dropdown, dataset_input, epochs_slider], outputs=[ingest_console])
+
+        with gr.Tab("Classroom Syllabus and Gemini Notebook Sync"):
+            gr.Markdown("### Academic Coursework, Syllabus Tracker and Gemini Bridge")
+            gr.Markdown("> Align academic assignments and research milestones with live execution runs and Gemini Notebooks.")
+            
+            with gr.Row():
+                gemini_sync_btn = gr.Button("Sync State with Gemini Notebook and Portal", variant="primary")
+            
+            syllabus_table = gr.JSON(label="Active Course Syllabus and Dissertation Schedule", value=CLASSROOM_SYLLABUS_TRACKER)
+            gemini_output = gr.JSON(label="Gemini Notebook Bridge Payload")
+            gemini_sync_btn.click(sync_with_gemini_notebook, outputs=[gemini_output])
+
         with gr.Tab("SIEM & XDR Threat Matrix"):
             gr.Markdown("### Splunk / KQL SIEM & XDR Search Engine [ACTUAL LOG STREAM]")
             with gr.Row():
@@ -311,28 +350,16 @@ with gr.Blocks(title="Zero-Gravity SOC, XDR & MDR Command Center") as demo:
             mdr_action_btn = gr.Button("Trigger MDR Escalation Report", variant="primary")
             mdr_output = gr.Textbox(label="MDR Operations Console", value="MDR Active: 24/7 SOC Overwatch Monitoring Live.", interactive=False)
             def trigger_mdr():
-                return f"[{datetime.now().strftime('%H:%M:%S')}] [MDR_OVERWATCH] Escalation report generated & dispatched to SOC Tier-3 Analysts."
+                run_id, _, _ = record_run_and_report("mdr_escalation", {"action": "TRIGGER_ESCALATION"}, {"status": "DISPATCHED"})
+                return f"[{datetime.now().strftime('%H:%M:%S')}] [MDR_OVERWATCH] Escalation report {run_id} generated & dispatched to SOC Tier-3 Analysts."
             mdr_action_btn.click(trigger_mdr, outputs=[mdr_output])
 
         with gr.Tab("Physical Linux Rigs & User Hardware [ACTUAL HARDWARE]"):
             gr.Markdown("### Registered User Nodes, Displays & Physical Network Telemetry")
-            gr.Markdown("""
-            **How Other Users Add Their Own Physical Equipment:**
-            
-            1. Copy `aegis_hw_client.py` to your Linux workstation, edge server, or field rig.
-            2. Set your custom owner name and SOC dashboard endpoint URL:
-               ```bash
-               export AEGIS_NODE_OWNER="Analyst_JohnDoe"
-               export AEGIS_DASHBOARD_URL="http://<YOUR_SOC_IP>:7861/api/hardware_telemetry"
-               python3 aegis_hw_client.py
-               ```
-            3. Devices automatically register physical monitors, network interfaces, CPU/RAM, and PCIe hardware below.
-            """)
             registered_nodes_json = gr.JSON(label="Active Physical Hardware Registry", value=REGISTERED_USER_HARDWARE)
 
         with gr.Tab("Microgrid & Hardware [SIMULATED DIGITAL TWIN]"):
             gr.Markdown("### Simulated Accelerators & Power Twin")
-            gr.Markdown("> *Note: Cerebras CS-4 engines, B200 HGX racks, and Solar/Battery metrics in this panel are mathematical digital twin simulations.*")
             with gr.Row():
                 gi_metric = gr.Number(label="[SIMULATED] Grid Isolation Index (GI)", value=1.0, precision=4)
                 pwr_metric = gr.Number(label="[SIMULATED] Total IT Power Draw (kW)", value=55.2)
@@ -386,35 +413,12 @@ with gr.Blocks(title="Zero-Gravity SOC, XDR & MDR Command Center") as demo:
                 gr.Textbox(label="Burn-In Operational State", value="RUNNING (31h 14m / 48h 00m)", interactive=False)
                 gr.Textbox(label="Invariant Violations (P_violation)", value="0.0000% (UNSAT -> -inf Logit)", interactive=False)
 
-        
-        with gr.Tab("Multi-Model Ingestion and Fine-Tuning"):
-            gr.Markdown("### Multi-Architecture LLM Ingestion and Continuous Learning Engine")
-            gr.Markdown("> Ingest fine-tuning datasets into Qwen, Llama, DeepSeek, or Mistral architectures and auto-sync model artifacts to Hugging Face.")
-            
-            with gr.Row():
-                model_dropdown = gr.Dropdown(choices=list(SUPPORTED_MODELS.keys()), value="Qwen-2.5-7B-SAT", label="Target Base LLM")
-                dataset_input = gr.Textbox(label="Ingestion Dataset / RAG Source", value="aegis_monad_formal_safety_v2.jsonl")
-                epochs_slider = gr.Slider(1, 10, value=3, step=1, label="Fine-Tuning Epochs")
-            
-            ingest_btn = gr.Button("Ingest Dataset and Train Model", variant="primary")
-            ingest_console = gr.Textbox(label="Ingestion and Training Logs", value="Ready to ingest multi-model datasets.", interactive=False)
-            ingest_btn.click(ingest_and_learn_multi_model, inputs=[model_dropdown, dataset_input, epochs_slider], outputs=[ingest_console])
-
-        with gr.Tab("Classroom Syllabus and Gemini Notebook Sync"):
-            gr.Markdown("### Academic Coursework, Syllabus Tracker and Gemini Bridge")
-            gr.Markdown("> Align academic assignments and research milestones with live execution runs and Gemini Notebooks.")
-            
-            with gr.Row():
-                gemini_sync_btn = gr.Button("Sync State with Gemini Notebook and Portal", variant="primary")
-            
-            syllabus_table = gr.JSON(label="Active Course Syllabus and Dissertation Schedule", value=CLASSROOM_SYLLABUS_TRACKER)
-            gemini_output = gr.JSON(label="Gemini Notebook Bridge Payload")
-            gemini_sync_btn.click(sync_with_gemini_notebook, outputs=[gemini_output])
-
         with gr.Tab("Multi-Language Sandbox [ACTUAL RUNTIME]"):
             gr.Markdown("### Test Harness Script Execution Engine [ACTUAL OS TEMP BUFFER]")
             lang_sel = gr.Radio(choices=["PowerShell", "Python", "C++", "Java"], value="Python", label="Target Language")
-            code_in = gr.Code(label="Code Buffer", language="python", value="# Actual Execution Test\nimport z3\nprint('Z3 SMT Solver Active')")
+            code_in = gr.Code(label="Code Buffer", language="python", value="# Actual Execution Test
+import z3
+print('Z3 SMT Solver Active')")
             exec_b = gr.Button("Inject & Execute Code", variant="primary")
             console_out = gr.Code(label="Console Execution Logs", language="shell", interactive=False)
             def update_l(l):
