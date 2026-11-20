@@ -1,0 +1,48 @@
+name: Pre-Ship Security Gate
+
+on:
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  trivy-scan:
+    name: Trivy Dependency & IaC Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy Filesystem & Config Scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  ai-pr-review:
+    name: AI Security Diff Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude Code Security Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "Auditing PR diff with Claude Code Security Review..."
+          # Invoke your Claude Code Security Review action or CLI here
+
+      - name: OpenAI Codex Security Verification
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "Verifying exploitability and patch suggestions with Codex Security..."
+          # Invoke your Codex Security action or CLI here

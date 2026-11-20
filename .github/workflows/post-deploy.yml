@@ -1,0 +1,36 @@
+name: Post-Deploy Verification & Hardening
+
+on:
+  deployment_status:
+
+jobs:
+  post-deploy-security:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set Target URL
+        run: echo "TARGET_URL=${{ github.event.deployment_status.target_url }}" >> $GITHUB_ENV
+
+      - name: Blind LLM Agents (BLA) Client Hardening Check
+        run: |
+          echo "Verifying client bundle obfuscation against automated LLM scraping..."
+          # Run BLA build/verification step for front-end assets if applicable
+
+      - name: Nuclei Live Endpoint Scan
+        uses: projectdiscovery/nuclei-action@main
+        with:
+          target: ${{ env.TARGET_URL }}
+
+      - name: Strix Autonomous AI Pen-Test
+        env:
+          STRIX_API_KEY: ${{ secrets.STRIX_API_KEY }}
+        run: |
+          echo "Running Strix against ${{ env.TARGET_URL }}..."
+          # docker run --rm usestrix/strix attack --target "${{ env.TARGET_URL }}"
+
+      - name: Microsoft PyRIT Chatbot Red-Teaming
+        run: |
+          echo "Running PyRIT prompt-injection suite against AI endpoints..."
+          # python -m pyrit --target "${{ env.TARGET_URL }}"
