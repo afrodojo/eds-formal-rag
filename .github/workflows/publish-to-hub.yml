@@ -1,0 +1,49 @@
+name: Build, Secure & Notify Central Hub
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  security-gate:
+    uses: afrodojo/platform-hub/.github/workflows/reusable-sec-gate.yml@main
+    with:
+      language: 'python'
+
+  build-and-push:
+    needs: security-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Spoke Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+  dispatch-to-hub:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Central Hub Assembly
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.HUB_DISPATCH_TOKEN }}
+          repository: afrodojo/platform-hub
+          event-type: spoke-updated
+          client-payload: '{"service": "${{ github.event.repository.name }}", "language": "python", "sha": "${{ github.sha }}"}'
